@@ -1,11 +1,10 @@
 #include <MCP2515.h>
 #include <freertos/task.h>
-#include <GPIO.h>
 #include <masterbusController.h>
 
 void configureOutputPin(gpio_num_t pin){
 	gpio_pad_select_gpio(pin);
-	ESP32CPP::GPIO::setOutput(pin);
+	gpio_set_direction(pin, GPIO_MODE_OUTPUT);
 }
 
 #define REG_CANSTAT 0xe
@@ -60,6 +59,7 @@ bool MasterbusController::readPacket(CANBusPacket& packet){
 			packet.data[i]=mcp2515->read();
 		}
 	}
+	ESP_LOGD(__FUNCTION__, "Tried to read canpacket %d", hasPacket);
 	return hasPacket;
 }
 

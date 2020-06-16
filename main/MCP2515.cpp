@@ -4,7 +4,6 @@
 #ifndef ARDUINO_ARCH_ESP32
 
 #include "MCP2515.h"
-#include <GPIO.h>
 #include "driver/spi_master.h"
 #include <esp_log.h>
 #include <freertos/task.h>
@@ -274,7 +273,7 @@ void MCP2515Class::onReceive(void(*callback)(int))
   CANControllerClass::onReceive(callback);
 
   gpio_pad_select_gpio(_intPin);
-  ESP32CPP::GPIO::setInput(_intPin);
+  gpio_set_direction(_intPin, GPIO_MODE_INPUT);
 #ifdef MCP2515INTERRUPT_EN
   if (callback) {
     spi.usingInterrupt(digitalPinToInterrupt(_intPin));
@@ -414,10 +413,12 @@ void MCP2515Class::reset()
 {
 	ESP_LOGD(__FUNCTION__, "Begin reset");
   //spi.beginTransaction(_spiSettings);
-  ESP32CPP::GPIO::low(_csPin); //Select Slave
+	gpio_set_level(_csPin, 0); //Select Slave
+
+
   uint8_t spiBytes[]={0xc0};
   spi->transfer(spiBytes, 1);
-  ESP32CPP::GPIO::high(_csPin); // Release slave
+  gpio_set_level(_csPin, 1);// Release slave
   //spi.endTransaction();
 
 //  delayMicroseconds(10);
@@ -439,10 +440,10 @@ void MCP2515Class::handleInterrupt()
 uint8_t MCP2515Class::readRegister(uint8_t address)
 {
   //spi.beginTransaction(_spiSettings);
-  ESP32CPP::GPIO::low(_csPin); //Select Slave
+  gpio_set_level(_csPin, 0); //Select Slave
   uint8_t spiBytes[]={0x03, address, 0x00};
   spi->transfer(spiBytes, 3);
-  ESP32CPP::GPIO::high(_csPin); // Release slave
+  gpio_set_level(_csPin, 1);// Release slave
   //spi.endTransaction();
 
   return spiBytes[2];
@@ -451,20 +452,20 @@ uint8_t MCP2515Class::readRegister(uint8_t address)
 void MCP2515Class::modifyRegister(uint8_t address, uint8_t mask, uint8_t value)
 {
   //spi.beginTransaction(_spiSettings);
-  ESP32CPP::GPIO::low(_csPin); //Select Slave
+  gpio_set_level(_csPin, 0); //Select Slave
   uint8_t spiBytes[]={0x05, address, mask, value};
   spi->transfer(spiBytes, 4);
-  ESP32CPP::GPIO::high(_csPin); // Release slave
+  gpio_set_level(_csPin, 1);// Release slave
   //spi.endTransaction();
 }
 
 void MCP2515Class::writeRegister(uint8_t address, uint8_t value)
 {
   //spi.beginTransaction(_spiSettings);
-  ESP32CPP::GPIO::low(_csPin); //Select Slave
+  gpio_set_level(_csPin, 0); //Select Slave
   uint8_t spiBytes[]={0x02, address, value};
   spi->transfer(spiBytes, 3);
-  ESP32CPP::GPIO::high(_csPin); // Release slave
+  gpio_set_level(_csPin, 1);// Release slave
   //spi.endTransaction();
 }
 

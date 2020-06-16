@@ -1,7 +1,4 @@
-# The following lines of boilerplate have to be in your project's CMakeLists
-# in this exact order for cmake to work correctly
-cmake_minimum_required(VERSION 3.5)
-
-set(SUPPORTED_TARGETS esp32)
-include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(vebt)
+idf_component_register(
+	SRCS "main/MCP2515.cpp" "main/masterbusController.cpp" "main/CANController.cpp" "main/SPIBus.cpp" "main/mvParser.cpp"
+    INCLUDE_DIRS "main/include"
+)

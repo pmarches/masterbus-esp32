@@ -1,14 +1,13 @@
 #include <SPIBus.h>
-#include <GPIO.h>
 
 void configurePinAsOutput(gpio_num_t pin){
 	gpio_pad_select_gpio(pin);
-	ESP32CPP::GPIO::setOutput(pin);
+	gpio_set_direction(pin, GPIO_MODE_OUTPUT);
 }
 
 void configureChipSelectPin(gpio_num_t csPin){
 	configurePinAsOutput(csPin);
-	ESP32CPP::GPIO::high(csPin); // Release slave
+	gpio_set_level(csPin, 1);// Release slave
 }
 
 SPIBus::SPIBus(spi_host_device_t host): m_host(host){
@@ -24,7 +23,7 @@ esp_err_t SPIBus::init(gpio_num_t mosiPin, gpio_num_t misoPin, gpio_num_t clkPin
 
 	configurePinAsOutput(clkPin);
 	configurePinAsOutput(mosiPin);
-	ESP32CPP::GPIO::setInput(misoPin);
+	gpio_set_direction(misoPin, GPIO_MODE_INPUT);
 
 	spi_bus_config_t bus_config;
 	bus_config.sclk_io_num     = clkPin;  // CLK

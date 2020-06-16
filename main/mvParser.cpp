@@ -1,4 +1,5 @@
-#include <mvParser.h>
+#include "mvParser.hpp"
+
 #include <esp_log.h>
 #include <memory.h>
 
@@ -69,6 +70,20 @@ bool MvParser::parseString(){
 
 
 MastervoltDictionary* MastervoltDictionary::instance=nullptr;
+
+const uint32_t MastervoltDictionary::DCSHUNT_CANID=0x086f1297;
+const uint16_t MastervoltDictionary::DCSHUNT_BATTERY_PERCENTAGE=0x00;
+const uint16_t MastervoltDictionary::DCSHUNT_BATTERY_VOLTS=0x01;
+const uint16_t MastervoltDictionary::DCSHUNT_BATTERY_AMPS=0x02;
+const uint16_t MastervoltDictionary::DCSHUNT_BATTERY_AMPS_CONSUMED=0x03;
+const uint16_t MastervoltDictionary::DCSHUNT_BATTERY_TEMPERATURE=0x05;
+
+const uint32_t MastervoltDictionary::INVERTER_CANID=0x083af412;
+const uint16_t MastervoltDictionary::INVERTER_DC_VOLTAGE_IN=0x06;
+const uint16_t MastervoltDictionary::INVERTER_DC_AMPS_IN=0x07;
+const uint16_t MastervoltDictionary::INVERTER_AC_AMPS_OUT=0x0b;
+const uint16_t MastervoltDictionary::INVERTER_STATE=0x14; //1.0=On 0.0=Off
+
 MastervoltDictionary::MastervoltDictionary(){
 //	attributeIdToLabelMap[0x00]="batteryPercentage";
 //	attributeIdToLabelMap[0x02]="batteryCurrent";
