@@ -7,6 +7,13 @@
 #include <iomanip>
 
 
+void MastervoltPacket::dump(){
+	ESP_LOGD(__FUNCTION__, "canId=%x", canId);
+	ESP_LOGD(__FUNCTION__, "attributeId=%x", this->attributeId);
+	ESP_LOGD(__FUNCTION__, "dataType=%x", this->dataType);
+	ESP_LOGD(__FUNCTION__, "floatValue=%f", this->floatValue);
+}
+
 const std::map<uint16_t, MastervoltPacket::MastervoltPacketType> MvParser::attributeToTypeMap = {
 	{0x00, MastervoltPacket::MastervoltPacketType::FLOAT},
 	{0x02, MastervoltPacket::MastervoltPacketType::FLOAT},
@@ -29,10 +36,10 @@ bool MvParser::parse(uint32_t canId, std::string& stringToParse, MastervoltPacke
 		return false;
 	}
 
-	this->mvPacket->dataType=stringToParse[0];
-	this->mvPacket->attributeId=stringToParse[1];
+	this->mvPacket->attributeId=stringToParse[0];
+	this->mvPacket->dataType=stringToParse[1];
 
-	if(stringToParse.size()==2){
+	if(canId&0x10000000){
 		this->mvPacket->valueType=MastervoltPacket::REQUEST;
 		return true;
 	}
