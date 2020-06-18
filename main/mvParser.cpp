@@ -6,7 +6,7 @@
 #include <sstream>
 #include <iomanip>
 #include <iterator>
-
+#include <mastervoltMessage.h>
 
 void MastervoltPacket::dump(){
 	ESP_LOGD(__FUNCTION__, "canId=%x", canId);
@@ -15,37 +15,30 @@ void MastervoltPacket::dump(){
 	ESP_LOGD(__FUNCTION__, "floatValue=%f", this->floatValue);
 }
 
-bool MvParser::parse(uint32_t canId, std::string& stringToParse, MastervoltPacket* mvPacket){
+MastervoltMessage* MvParser::parse(uint32_t canId, std::string& stringToParse){
 	this->stringToParse=stringToParse;
-	this->mvPacket=mvPacket;
-	this->mvPacket->canId=canId;
-
 	ESP_LOG_BUFFER_HEXDUMP(__FUNCTION__, stringToParse.c_str(), stringToParse.size(), ESP_LOG_DEBUG);
+	uint32_t deviceUniqueId=(canId&0x7FFF0000)>>4;
+	uint32_t deviceKindId=(candId&0x0000FFFF);
+	bool isRequest=(candId&0x10000000)!=0;
+	if(isRequest){
+		return new MastervoltMessageRequest(deviceUniqueId, deviceKindId);
+	}
 	if(stringToParse.size()==0){
-		return false;
+		return new MastervoltMessageUnknown(deviceUniqueId, deviceKindId, stringToParse);
 	}
 
-	this->mvPacket->attributeId=stringToParse[0];
-	this->mvPacket->dataType=stringToParse[1];
+	uint8_t attributeId=stringToParse[0];
+	uint8_t dataType=stringToParse[1];
 
-	if(canId&0x10000000){
-		this->mvPacket->valueType=MastervoltPacket::REQUEST;
-		return true;
+	if(dataType==0x00){
+		return new MastervoltMessageFloat(deviceUniqueId, deviceKindId, parseValueAsFloat());
 	}
-
-	if(this->mvPacket->dataType==0x30){
-		this->mvPacket->valueType=MastervoltPacket::LABEL;
-		return parseString();
-	}
-	else if(this->mvPacket->dataType==0x00){
-		this->mvPacket->valueType=MastervoltPacket::FLOAT;
-		this->mvPacket->floatValue=parseValueAsFloat();
-	}
-	else {
-		mvPacket->unparsed=stringToParse;
+	else if(dataType==0x30){
+		return new MastervoltMessageLabel(deviceUniqueId, deviceKindId, parseString());
 	}
 
-	return true;
+	return new MastervoltMessageUnknown(deviceUniqueId, deviceKindId, stringToParse);
 }
 
 
@@ -54,12 +47,11 @@ float MvParser::parseValueAsFloat(){
 	return *valueAsFloat;
 }
 
-bool MvParser::parseString(){
+std::string MvParser::parseString(){
 	uint8_t segmentNumber=stringToParse[3];
 
 	uint8_t numberOfCharsInPacket=stringToParse.size()-4;
-	this->mvPacket->labelContent=stringToParse.substr(4, numberOfCharsInPacket);
-	return true;
+	return stringToParse.substr(4, numberOfCharsInPacket);
 }
 
 MastervoltDeviceKind::MastervoltDeviceKind(uint32_t deviceKind) : deviceKind(deviceKind) {

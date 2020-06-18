@@ -120,11 +120,9 @@ class MvParser {
 	static std::map<uint16_t, MastervoltPacket::MastervoltPacketType> populateAttributeIdToTypeMap();
 public:
 	bool parse(uint32_t canId, std::string& stringToParse, MastervoltPacket* mvPacket);
-	bool parseString();
-	bool parseUnknownAttribute();
+	std::string parseString();
 	float parseValueAsFloat();
 	std::string stringToParse;
-	MastervoltPacket* mvPacket;
 };
 
 
