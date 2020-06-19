@@ -1,11 +1,10 @@
 #ifndef MAIN_INCLUDE_MVPARSER_H_
 #define MAIN_INCLUDE_MVPARSER_H_
 
+#include <mastervoltMessage.hpp>
 #include <string>
 #include <map>
-#include <mastervoltMessage.h>
 
-class MastervoltPacket;
 class MastervoltDeviceKind;
 
 class MastervoltAttributeKind {
@@ -34,24 +33,23 @@ public:
 	MastervoltEncoding encoding; //How is the underlying data encoded? With floats? Strings?
 	MastervoltDataType dataType; //What does the data look like? A date? A float? Text?
 
-	std::string packetValueToString(MastervoltPacket& packet) const;
 	std::string toString() const;
 };
 
 class MastervoltDeviceKind {
 public:
 	MastervoltDeviceKind(uint32_t deviceKind);
-	void addAttribute(MastervoltAttributeKind att);
+	void addAttribute(uint16_t attributeKind, std::string textDescription, MastervoltAttributeKind::MastervoltEncoding encoding, MastervoltAttributeKind::MastervoltDataType dataType);
 	std::string toString() const;
 	uint32_t deviceKind;
-	std::map<uint16_t, MastervoltAttributeKind> attributeKind;
+	std::map<uint16_t, MastervoltAttributeKind*> attributes;
 };
 
 class MastervoltDictionary {
 protected:
 	MastervoltDictionary();
 	static MastervoltDictionary* instance;
-	std::map<uint32_t, MastervoltDeviceKind> deviceKind;
+	std::map<uint32_t, MastervoltDeviceKind*> deviceKind;
 	const MastervoltDeviceKind UNKNOWN_DEVICE_KIND;
 	const MastervoltAttributeKind UNKNOWN_ATTRIBUTE_KIND;
 public:
@@ -81,45 +79,14 @@ public:
 
 
 	static MastervoltDictionary* getInstance() { if(instance==nullptr) instance=new MastervoltDictionary(); return instance;}
-	const MastervoltAttributeKind& resolveAttribute(uint32_t canId, uint16_t attributeId);
+	const MastervoltAttributeKind* resolveAttribute(uint32_t deviceKindId, uint16_t attributeId);
+	const MastervoltDeviceKind* resolveDevice(uint32_t deviceKindId);
+	std::string toString() const;
 };
-
-class MastervoltPacket {
-public:
-	MastervoltPacket(): canId(0), attributeId(0), dataType(0), valueType(UNKNOWN), floatValue(0){
-	}
-//	uint8_t getGroupNumber();
-//	uint8_t getItemNumber();
-
-	std::string getLabel();
-	float getFloatValue();
-
-	uint32_t canId;
-	uint8_t attributeId; //What is the value about? Battery volts? Battery Amps? Time? Date? These attribute Id overlap across different device type
-
-	uint8_t dataType;
-
-	enum MastervoltPacketType {
-		UNKNOWN,
-		REQUEST,
-		FLOAT,
-		LABEL,
-	} valueType;
-
-	float floatValue;
-	std::string labelContent;
-	std::string unparsed;
-
-	bool isRequest(){ return (canId&0x10000000) != 0; }
-	uint32_t getDeviceUniqueId() { return canId&0x7FFF0000; }
-	void dump();
-};
-
 
 class MvParser {
-	static std::map<uint16_t, MastervoltPacket::MastervoltPacketType> populateAttributeIdToTypeMap();
 public:
-	bool parse(uint32_t canId, std::string& stringToParse, MastervoltPacket* mvPacket);
+	MastervoltMessage* parse(uint32_t canId, std::string& stringToParse);
 	std::string parseString();
 	float parseValueAsFloat();
 	std::string stringToParse;
