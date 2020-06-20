@@ -31,7 +31,7 @@ MastervoltMessage* MvParser::parse(uint32_t canId, std::string& stringToParse){
 	ESP_LOGI(__FUNCTION__, "resolvedAttribute is %s", resolvedAttribute->toString().c_str());
 
 	if(dataType==0x00){
-		if(attributeId==MastervoltAttributeKind::DATE_DT){
+		if(resolvedAttribute->dataType==MastervoltAttributeKind::DATE_DT){
 			MastervoltMessageDate* dateMsg=new MastervoltMessageDate(deviceUniqueId, deviceKindId, attributeId);
 			uint32_t nbDaysZeroBC=parseValueAsFloat();
 			dateMsg->day=nbDaysZeroBC%32;
@@ -42,7 +42,7 @@ MastervoltMessage* MvParser::parse(uint32_t canId, std::string& stringToParse){
 			dateMsg->month=yearAndFraction*13;
 			return dateMsg;
 		}
-		else if(attributeId==MastervoltAttributeKind::TIME_DT){
+		else if(resolvedAttribute->dataType==MastervoltAttributeKind::DATE_DT){
 			MastervoltMessageTime* timeMsg=new MastervoltMessageTime(deviceUniqueId, deviceKindId, attributeId);
 			//Day of month = float%32, Year=float/32/13, Month=decimal remainder of year*13
 			//840528.00==16/06/2020
@@ -64,8 +64,10 @@ MastervoltMessage* MvParser::parse(uint32_t canId, std::string& stringToParse){
 		}
 		return new MastervoltMessageFloat(deviceUniqueId, deviceKindId, attributeId, parseValueAsFloat());
 	}
-	else if(dataType==0x30){
-		return new MastervoltMessageLabel(deviceUniqueId, deviceKindId, attributeId, parseString());
+	else if(attributeId==0x30){
+		uint8_t segmentNumber=stringToParse[3];
+		uint8_t numberOfCharsInPacket=stringToParse.size()-4;
+		return new MastervoltMessageLabel(deviceUniqueId, deviceKindId, attributeId, segmentNumber, stringToParse.substr(4, numberOfCharsInPacket));
 	}
 
 	return new MastervoltMessageUnknown(deviceUniqueId, deviceKindId, attributeId, stringToParse);
@@ -77,14 +79,7 @@ float MvParser::parseValueAsFloat(){
 	return *valueAsFloat;
 }
 
-std::string MvParser::parseString(){
-	uint8_t segmentNumber=stringToParse[3];
-
-	uint8_t numberOfCharsInPacket=stringToParse.size()-4;
-	return stringToParse.substr(4, numberOfCharsInPacket);
-}
-
-MastervoltDeviceKind::MastervoltDeviceKind(uint32_t deviceKind) : deviceKind(deviceKind) {
+MastervoltDeviceKind::MastervoltDeviceKind(uint32_t deviceKind, std::string textDescription) : deviceKind(deviceKind), textDescription(textDescription) {
 }
 
 std::string MastervoltDeviceKind::toString() const {
@@ -135,6 +130,7 @@ const uint16_t MastervoltDictionary::INVERTER_DC_VOLTAGE_IN=0x06;
 const uint16_t MastervoltDictionary::INVERTER_DC_AMPS_IN=0x07;
 const uint16_t MastervoltDictionary::INVERTER_AC_AMPS_OUT=0x0b;
 const uint16_t MastervoltDictionary::INVERTER_STATE=0x14; //1.0=On 0.0=Off
+const uint16_t MastervoltDictionary::INVERTER_POWER_STATE=0x38; //1.0=On 0.0=Off
 
 const uint32_t MastervoltDictionary::DCSHUNT_KIND=0x1297;
 const uint32_t MastervoltDictionary::INVERTER_KIND=0xf412;
@@ -142,9 +138,9 @@ const uint32_t MastervoltDictionary::BATTERY_CHARGER_KIND=666;
 const uint32_t MastervoltDictionary::MASTERVIEW_KIND=666;
 
 MastervoltDictionary::MastervoltDictionary() :
-		UNKNOWN_DEVICE_KIND(0),
+		UNKNOWN_DEVICE_KIND(0, "UnknownDevice"),
 		UNKNOWN_ATTRIBUTE_KIND(&UNKNOWN_DEVICE_KIND, MastervoltAttributeKind::UNKNOWN_DT, "Unknown", MastervoltAttributeKind::STRING_ENCODING, MastervoltAttributeKind::BYTES_DT) {
-	MastervoltDeviceKind* dcShuntDeviceKind=new MastervoltDeviceKind(DCSHUNT_KIND);
+	MastervoltDeviceKind* dcShuntDeviceKind=new MastervoltDeviceKind(DCSHUNT_KIND, "DCShuntDevice");
 	deviceKind.insert(std::pair<uint32_t, MastervoltDeviceKind*>(dcShuntDeviceKind->deviceKind, dcShuntDeviceKind));
 	dcShuntDeviceKind->addAttribute(DCSHUNT_BATTERY_PERCENTAGE, "BatteryPercentage", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::SIMPLE_FLOAT_DT);
 	dcShuntDeviceKind->addAttribute(DCSHUNT_BATTERY_VOLTS, "BatteryVolts", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::SIMPLE_FLOAT_DT);
@@ -154,12 +150,13 @@ MastervoltDictionary::MastervoltDictionary() :
 	dcShuntDeviceKind->addAttribute(DCSHUNT_DATE, "Date", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::DATE_DT);
 	dcShuntDeviceKind->addAttribute(DCSHUNT_TIME, "Time", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::TIME_DT);
 
-	MastervoltDeviceKind* inverterDeviceKind=new MastervoltDeviceKind(INVERTER_KIND);
+	MastervoltDeviceKind* inverterDeviceKind=new MastervoltDeviceKind(INVERTER_KIND, "InverterDevice");
 	deviceKind.insert(std::pair<uint32_t, MastervoltDeviceKind*>(inverterDeviceKind->deviceKind, inverterDeviceKind));
 	inverterDeviceKind->addAttribute(INVERTER_AC_AMPS_OUT, "ACAmpsOut", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::SIMPLE_FLOAT_DT);
 	inverterDeviceKind->addAttribute(INVERTER_DC_AMPS_IN, "DCAmpsIn", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::SIMPLE_FLOAT_DT);
 	inverterDeviceKind->addAttribute(INVERTER_DC_VOLTAGE_IN, "DCVoltsIn", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::SIMPLE_FLOAT_DT);
 	inverterDeviceKind->addAttribute(INVERTER_STATE, "InverterState", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::SIMPLE_FLOAT_DT);
+	inverterDeviceKind->addAttribute(INVERTER_POWER_STATE, "InverterPowerState", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::SIMPLE_FLOAT_DT);
 }
 
 std::string MastervoltDictionary::toString() const {

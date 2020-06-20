@@ -24,10 +24,12 @@ public:
 		LABEL_DT
 	};
 	MastervoltAttributeKind(const MastervoltDeviceKind* parent, uint16_t attributeKind, std::string textDescription, MastervoltEncoding encoding, MastervoltDataType dataType)
-		: MastervoltAttributeKind(attributeKind, textDescription, encoding, dataType){
+		: MastervoltAttributeKind(attributeKind, textDescription, encoding, dataType)
+		  {
+		this->parent=parent;
 	}
 	MastervoltAttributeKind(uint16_t attributeKind, std::string textDescription, MastervoltEncoding encoding, MastervoltDataType dataType);
-	MastervoltDeviceKind* parent;
+	const MastervoltDeviceKind* parent;
 	uint16_t attributeKind;
 	std::string textDescription;
 	MastervoltEncoding encoding; //How is the underlying data encoded? With floats? Strings?
@@ -38,10 +40,11 @@ public:
 
 class MastervoltDeviceKind {
 public:
-	MastervoltDeviceKind(uint32_t deviceKind);
+	MastervoltDeviceKind(uint32_t deviceKind, std::string textDescription);
 	void addAttribute(uint16_t attributeKind, std::string textDescription, MastervoltAttributeKind::MastervoltEncoding encoding, MastervoltAttributeKind::MastervoltDataType dataType);
 	std::string toString() const;
 	uint32_t deviceKind;
+	std::string textDescription;
 	std::map<uint16_t, MastervoltAttributeKind*> attributes;
 };
 
@@ -72,6 +75,7 @@ public:
 	static const uint16_t INVERTER_DC_AMPS_IN;
 	static const uint16_t INVERTER_AC_AMPS_OUT;
 	static const uint16_t INVERTER_STATE;
+	static const uint16_t INVERTER_POWER_STATE; //0=Off, 1=On
 
 	static const uint16_t DCSHUNT_DAYOFMONTH;
 	static const uint16_t DCSHUNT_MONTHOFYEAR;

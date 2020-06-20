@@ -14,7 +14,8 @@ std::string MastervoltMessage::toString() const {
 
 std::string MastervoltMessageUnknown::toString() const {
 	std::stringstream ss;
-	ss<< MastervoltMessage::toString() << " Unknown:" << std::setw(2) << std::setfill('0') << std::hex << std::uppercase;
+	ss<< MastervoltMessage::toString() ;
+	ss<< " Unknown:" << std::setw(2) << std::setfill('0') << std::hex << std::uppercase;
 	std::copy(unknownBytes.begin(), unknownBytes.end(), std::ostream_iterator<uint32_t>(ss, "_"));
 	return ss.str();
 }
@@ -27,3 +28,6 @@ std::string MastervoltMessageFloat::toString() const {
 	return ss.str();
 }
 
+std::string MastervoltMessageLabel::toString() const{
+	return this->label;
+}
