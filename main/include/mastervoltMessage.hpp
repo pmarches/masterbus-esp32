@@ -64,9 +64,9 @@ public:
 
 class MastervoltMessageDate : public MastervoltMessage {
 public:
-	uint8_t day;
-	uint8_t month;
-	uint8_t year;
+	uint16_t day;
+	uint16_t month;
+	uint16_t year;
 
 	MastervoltMessageDate(uint32_t deviceUniqueId, uint32_t deviceKindId, uint8_t attributeId):
 		MastervoltMessage(deviceUniqueId, deviceKindId, attributeId),
@@ -77,6 +77,7 @@ public:
 	}
 	virtual ~MastervoltMessageDate() {}
 	void toTm(struct tm& destinationTm);
+	virtual std::string toString() const;
 };
 
 class MastervoltMessageTime : public MastervoltMessage {
@@ -89,10 +90,11 @@ public:
 		hour(0),
 		minute(0),
 		second(0) {
-		type=DATE;
+		type=TIME;
 	}
 	virtual ~MastervoltMessageTime() {}
 	void toTm(struct tm& destinationTm);
+	virtual std::string toString() const;
 };
 
 class MastervoltMessageLabel : public MastervoltMessage {

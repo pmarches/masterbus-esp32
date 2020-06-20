@@ -74,8 +74,13 @@ public:
 	static const uint16_t INVERTER_DC_VOLTAGE_IN;
 	static const uint16_t INVERTER_DC_AMPS_IN;
 	static const uint16_t INVERTER_AC_AMPS_OUT;
-	static const uint16_t INVERTER_STATE;
+	static const uint16_t INVERTER_AC_VOLTAGE_OUT;
+	static const uint16_t INVERTER_SHORE_FUSE;
+	static const uint16_t INVERTER_MODE;
+	static const uint16_t INVERTER_LOAD_PERCENT;
 	static const uint16_t INVERTER_POWER_STATE; //0=Off, 1=On
+	static const uint16_t CHARGER_STATE; //0=Off, 1=On
+	static const uint16_t INVERTER_INPUT_GENSET;
 
 	static const uint16_t DCSHUNT_DAYOFMONTH;
 	static const uint16_t DCSHUNT_MONTHOFYEAR;

@@ -31,3 +31,15 @@ std::string MastervoltMessageFloat::toString() const {
 std::string MastervoltMessageLabel::toString() const{
 	return this->label;
 }
+
+std::string MastervoltMessageTime::toString() const {
+	std::stringstream ss;
+	ss<<(uint16_t)hour<<":"<<(uint16_t)minute<<":"<<(uint16_t)second;
+	return ss.str();
+}
+
+std::string MastervoltMessageDate::toString() const {
+	std::stringstream ss;
+	ss<<day<<"/"<<month<<"/"<<year;
+	return ss.str();
+}
