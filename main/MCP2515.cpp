@@ -275,13 +275,12 @@ int MCP2515Class::parsePacket()
   return true;
 }
 
-void MCP2515Class::handleInterrupt(void* thisObjPtr)
-{
-  ESP_EARLY_LOGW(__FUNCTION__, "Begin %p", thisObjPtr);
+void MCP2515Class::handleInterrupt(void* thisObjPtr) {
+//  ESP_EARLY_LOGD(__FUNCTION__, "Begin %p", thisObjPtr);
   MCP2515Class* thisObj=(MCP2515Class*) thisObjPtr;
   xSemaphoreGiveFromISR(thisObj->msgPumpSemaphore, NULL);
 
-  ESP_EARLY_LOGW(__FUNCTION__, "End");
+//  ESP_EARLY_LOGD(__FUNCTION__, "End");
 }
 
 void MCP2515Class::attachInterrupt(gpio_isr_t canbusInterruptHandler){
