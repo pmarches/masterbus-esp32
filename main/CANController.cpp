@@ -6,8 +6,6 @@
 #include <esp_log.h>
 
 CANControllerClass::CANControllerClass() :
-  _onReceive(NULL),
-
   _packetBegun(false),
   _txId(-1),
   _txExtended(-1),
@@ -183,11 +181,6 @@ int CANControllerClass::peek()
 
 void CANControllerClass::flush()
 {
-}
-
-void CANControllerClass::onReceive(void(*callback)(int))
-{
-  _onReceive = callback;
 }
 
 int CANControllerClass::filter(int /*id*/, int /*mask*/)

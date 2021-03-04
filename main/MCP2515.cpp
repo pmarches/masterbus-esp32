@@ -2,11 +2,13 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 #ifndef ARDUINO_ARCH_ESP32
+#define MCP2515INTERRUPT_EN
 
 #include "MCP2515.h"
 #include "driver/spi_master.h"
 #include <esp_log.h>
 #include <freertos/task.h>
+#include <freertos/semphr.h>
 
 #define REG_BFPCTRL                0x0c
 #define REG_TXRTSCTRL              0x0d
@@ -72,10 +74,12 @@ MCP2515Class::MCP2515Class(SPIDevice* spi, gpio_num_t chipSelectPin, gpio_num_t 
   _clockFrequency(clockFrequency),
   _operationalMode(MCP2515Class::LISTEN_ONLY_MODE)
 {
+	msgPumpSemaphore=xSemaphoreCreateBinary();
 }
 
 MCP2515Class::~MCP2515Class()
 {
+	vSemaphoreDelete(msgPumpSemaphore);
 }
 
 int MCP2515Class::begin(long baudRate)
@@ -214,11 +218,10 @@ int MCP2515Class::endPacket()
 
 int MCP2515Class::parsePacket()
 {
-  int whichRxBuffer;
-
   uint8_t intf = readRegister(REG_CANINTF);
-//  ESP_LOGD(__FUNCTION__, "intf=%x", intf);
+//  ESP_EARLY_LOGD(__FUNCTION__, "intf=%x", intf);
 
+  uint8_t whichRxBuffer;
   if (intf & FLAG_RXnIF(0)) {
     whichRxBuffer = 0;
   } else if (intf & FLAG_RXnIF(1)) {
@@ -229,20 +232,22 @@ int MCP2515Class::parsePacket()
     _rxRtr = false;
     _rxLength = 0;
 //    ESP_LOGD(__FUNCTION__, "RX in neither buffers");
-    return 0;
+    return false;
   }
 
   _rxExtended = (readRegister(REG_RXBnSIDL(whichRxBuffer)) & FLAG_IDE) ? true : false;
 
+  //Read the identifier (8+3 bits) from the chip
   uint32_t idA = ((readRegister(REG_RXBnSIDH(whichRxBuffer)) << 3) & 0x07f8) | ((readRegister(REG_RXBnSIDL(whichRxBuffer)) >> 5) & 0x07);
   if (_rxExtended) {
+	  //2 bits from SIDL + 8 bits from EID8 + 8 bits from EID0  = 18 bits of extended identifier
     uint32_t idB = (((uint32_t)(readRegister(REG_RXBnSIDL(whichRxBuffer)) & 0x03) << 16) & 0x30000) | ((readRegister(REG_RXBnEID8(whichRxBuffer)) << 8) & 0xff00) | readRegister(REG_RXBnEID0(whichRxBuffer));
 
     _rxId = (idA << 18) | idB;
-    _rxRtr = (readRegister(REG_RXBnDLC(whichRxBuffer)) & FLAG_RTR) ? true : false;
+    _rxRtr = (readRegister(REG_RXBnSIDL(whichRxBuffer)) & FLAG_SRR) ? true : false;
   } else {
     _rxId = idA;
-    _rxRtr = (readRegister(REG_RXBnSIDL(whichRxBuffer)) & FLAG_SRR) ? true : false;
+    _rxRtr = (readRegister(REG_RXBnDLC(whichRxBuffer)) & FLAG_RTR) ? true : false;
   }
   _rxDlc = readRegister(REG_RXBnDLC(whichRxBuffer)) & 0x0f;
   _rxIndex = 0;
@@ -257,36 +262,45 @@ int MCP2515Class::parsePacket()
     }
   }
 
-//  ESP_LOGD(__FUNCTION__, "_rxExtended=%x", _rxExtended);
-//  ESP_LOGD(__FUNCTION__, "_rxId=%ld", _rxId);
-//  ESP_LOGD(__FUNCTION__, "_rxRtr=%x", _rxRtr);
-//  ESP_LOGD(__FUNCTION__, "_rxDlc=%x", _rxDlc);
-//  ESP_LOGD(__FUNCTION__, "_rxIndex=%x", _rxIndex);
+#if 0
+  ESP_LOGD(__FUNCTION__, "_rxExtended=%d", _rxExtended);
+  ESP_LOGD(__FUNCTION__, "_rxId=0x%x", (uint32_t) _rxId);
+  ESP_LOGD(__FUNCTION__, "_rxRtr=%d", _rxRtr);
+  ESP_LOGD(__FUNCTION__, "_rxDlc=%d", _rxDlc);
+  ESP_LOGD(__FUNCTION__, "_rxIndex=%d", _rxIndex);
+#endif
 
   modifyRegister(REG_CANINTF, FLAG_RXnIF(whichRxBuffer), 0x00);
 
-  return _rxDlc;
+  return true;
 }
 
-void MCP2515Class::onReceive(void(*callback)(int))
+void MCP2515Class::handleInterrupt(void* thisObjPtr)
 {
-  CANControllerClass::onReceive(callback);
+  ESP_EARLY_LOGW(__FUNCTION__, "Begin %p", thisObjPtr);
+  MCP2515Class* thisObj=(MCP2515Class*) thisObjPtr;
+  xSemaphoreGiveFromISR(thisObj->msgPumpSemaphore, NULL);
 
-  gpio_pad_select_gpio(_intPin);
-  gpio_set_direction(_intPin, GPIO_MODE_INPUT);
-#ifdef MCP2515INTERRUPT_EN
-  if (callback) {
-    spi.usingInterrupt(digitalPinToInterrupt(_intPin));
-    attachInterrupt(digitalPinToInterrupt(_intPin), MCP2515Class::onInterrupt, LOW);
-  } else {
-    detachInterrupt(digitalPinToInterrupt(_intPin));
-#ifdef SPI_HAS_NOTUSINGINTERRUPT
-    spi.notUsingInterrupt(digitalPinToInterrupt(_intPin));
-#endif
-  }
-#else
-	#warning "INTERRUPT DISABLED"
-#endif
+  ESP_EARLY_LOGW(__FUNCTION__, "End");
+}
+
+void MCP2515Class::attachInterrupt(gpio_isr_t canbusInterruptHandler){
+	ESP_LOGD(__FUNCTION__, "Begin");
+	gpio_config_t gpioConfig = {
+		.pin_bit_mask = (1ul<<_intPin),
+		.mode	= GPIO_MODE_INPUT,
+		.pull_up_en = GPIO_PULLUP_DISABLE,
+		.pull_down_en = GPIO_PULLDOWN_ENABLE,
+		.intr_type = GPIO_INTR_POSEDGE,
+	};
+	gpio_config(&gpioConfig);
+	gpio_install_isr_service(0);
+	ESP_LOGD(__FUNCTION__, "this=%p", this);
+	gpio_isr_handler_add(_intPin, canbusInterruptHandler, this);
+	gpio_intr_enable(_intPin);
+
+	writeRegister(REG_CANINTF, 0); //Clear any existing interrupt
+	ESP_LOGD(__FUNCTION__, "End");
 }
 
 void MCP2515Class::clearAllFilters(){
@@ -426,17 +440,6 @@ void MCP2515Class::reset()
 	ESP_LOGD(__FUNCTION__, "Done reset");
 }
 
-void MCP2515Class::handleInterrupt()
-{
-  if (readRegister(REG_CANINTF) == 0) {
-    return;
-  }
-
-  while (parsePacket()) {
-    _onReceive(available());
-  }
-}
-
 uint8_t MCP2515Class::readRegister(uint8_t address)
 {
   //spi.beginTransaction(_spiSettings);
@@ -468,13 +471,6 @@ void MCP2515Class::writeRegister(uint8_t address, uint8_t value)
   gpio_set_level(_csPin, 1);// Release slave
   //spi.endTransaction();
 }
-
-#ifdef MCP2515INTERRUPT_EN
-void MCP2515Class::onInterrupt()
-{
-  CAN.handleInterrupt();
-}
-#endif
 
 uint8_t MCP2515Class::getAndClearRegister(uint8_t registerToGetAndClear){
 	uint8_t status=readRegister(registerToGetAndClear);
@@ -515,6 +511,16 @@ void MCP2515Class::dumpRegisterState(){
 
 	status=readRegister(REG_TXBnCTRL(0));
 	ESP_LOGD(__FUNCTION__, "REG_TXBnCTRL(0): %x", status);
+}
+
+#define RX1OVR 0x40 //Receive Buffer 1 Overflow Flag bit
+#define RX0OVR 0x20 //Receive Buffer 0 Overflow Flag bit
+
+bool MCP2515Class::getAndClearRxOverflow(){
+	uint8_t errorStatus=readRegister(REG_EFLG);
+	bool haxRxOverflowOccured= (errorStatus&RX1OVR) || (errorStatus&RX0OVR);
+	writeRegister(REG_EFLG, 0x0);
+	return haxRxOverflowOccured;
 }
 
 #endif

@@ -10,12 +10,14 @@
 
 class CANBusPacket {
 public:
-	long int canId;
-	uint8_t* data;
+	uint32_t canId;
+	uint32_t stdCanbusId;
+	uint32_t extCanbusId;
+	uint8_t data[8];
 	uint32_t dataLen;
 	bool isDirty;
-	CANBusPacket(): canId(0), data(0), dataLen(0), isDirty(false){
-	}
+	CANBusPacket();
+	~CANBusPacket();
 	std::string valueToHexString();
 	std::string getData();
 };
@@ -23,10 +25,17 @@ public:
 class MasterbusController {
 public:
 	MasterbusController(MCP2515Class* mcp2515);
+	virtual ~MasterbusController();
 	void configure(int operationalMode);
 	void send(long int canId, uint8_t* canDataToSend, uint32_t canDataLenToSend);
 	bool readPacket(CANBusPacket& packet);
 	MCP2515Class* mcp2515;
+	QueueHandle_t pumpQueue;
+	static void pumpCanbusToQueue(void* thisObj);
+	void startCANBusPump();
+	void stopCANBusPump();
+	bool keepPumping;
+	xTaskHandle taskPumpMToQueueHandle;
 };
 
 #endif /* MAIN_INCLUDE_MASTERBUSCONTROLLER_H_ */

@@ -95,7 +95,7 @@ public:
 
 class MvParser {
 public:
-	MastervoltMessage* parse(uint32_t canId, std::string& stringToParse);
+	MastervoltMessage* parse(uint32_t stdCanbusId, uint32_t extCanbusId, std::string& canbusPayloadToParse);
 	std::string parseString();
 	float parseValueAsFloat();
 	std::string stringToParse;

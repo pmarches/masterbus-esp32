@@ -5,8 +5,8 @@
 
 std::string MastervoltMessage::toString() const {
 	std::stringstream ss;
-	ss<<"deviceUniqueId=0x"<< std::setw(2) << std::setfill('0') << std::hex << std::uppercase<<deviceUniqueId;
-	ss<< " deviceKindId=0x"<< std::setw(2) << std::setfill('0') << std::hex << std::uppercase<<deviceKindId;
+	ss<<"deviceUniqueId=0x"<< std::setw(5) << std::setfill('0') << std::hex << std::uppercase<<deviceUniqueId;
+	ss<< " deviceKindId=0x"<< std::setw(4) << std::setfill('0') << std::hex << std::uppercase<<deviceKindId;
 	ss<< " attributeId=0x"<< std::setw(2) << std::setfill('0') << std::hex << attributeId;
 	return ss.str();
 }
