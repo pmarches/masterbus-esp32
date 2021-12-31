@@ -17,58 +17,56 @@ MastervoltMessage* MvParser::parse(uint32_t stdCanbusId, uint32_t extCanbusId, s
 		return new MastervoltMessageUnknown(extCanbusId, stdCanbusId, 0, mbPayloadToParse);
 	}
 	uint8_t attributeId=mbPayloadToParse[0];
-	MastervoltAttributeKind::MastervoltDataType dataType=(MastervoltAttributeKind::MastervoltDataType) mbPayloadToParse[1];
-	ESP_LOGI(__FUNCTION__, "attributeId=0x%x dataType=0x%x", attributeId, dataType);
+//	MastervoltAttributeKind::MastervoltDataType dataType=(MastervoltAttributeKind::MastervoltDataType) mbPayloadToParse[1];
+//	ESP_LOGI(__FUNCTION__, "attributeId=0x%x dataType=0x%x", attributeId, dataType);
 
 //	if(isRequest){
 //		return new MastervoltMessageRequest(deviceUniqueId, deviceKindId, attributeId);
 //	}
-	const MastervoltAttributeKind* resolvedAttribute=MastervoltDictionary::getInstance()->resolveAttribute(extCanbusId, attributeId);
+	const MastervoltAttributeKind* resolvedAttribute=MastervoltDictionary::getInstance()->resolveAttribute(stdCanbusId, attributeId);
 	ESP_LOGI(__FUNCTION__, "resolvedAttribute is %s", resolvedAttribute->toString().c_str());
 
-	if(dataType==0x00){
-		if(resolvedAttribute->dataType==MastervoltAttributeKind::DATE_DT){
-			MastervoltMessageDate* dateMsg=new MastervoltMessageDate(extCanbusId, stdCanbusId, attributeId);
-			uint32_t nbDaysZeroBC=parseValueAsFloat();
-			ESP_LOGI(__FUNCTION__, "nbDaysZeroBC %d", nbDaysZeroBC);
-
-			//Day of month = float%32, Year=float/32/13, Month=decimal remainder of year*13
-			//840509.00==29/06/2020
-			//840528.00==16/06/2020
-			//840944.00==16/05/2021
-			//840943.00==15/06/2021
-			//840527.00==15/06/2020
-			//840559.00==15/07/2020
-			//840591.00==15/08/2020
-			//832207.00==15/06/2000 : The masterview interface does not allow for less than year 2000
-			//832034.00==02/01/2000 : The interface fails to show the date if we set the date to 01/01/2000. This is probably the default
-
-			dateMsg->day=(nbDaysZeroBC%32)+1;
-			nbDaysZeroBC-=dateMsg->day;
-			float yearAndFraction=nbDaysZeroBC/416.0; //32 days *13 months=416
-			dateMsg->year=yearAndFraction;
-			yearAndFraction-=dateMsg->year;
-			dateMsg->month=round(yearAndFraction*13);
-			return dateMsg;
-		}
-		else if(resolvedAttribute->dataType==MastervoltAttributeKind::TIME_DT){
-			MastervoltMessageTime* timeMsg=new MastervoltMessageTime(extCanbusId, stdCanbusId, attributeId);
-			uint32_t secondElapsedSinceMidnight=parseValueAsFloat();
-			timeMsg->hour=secondElapsedSinceMidnight/60/60;
-			secondElapsedSinceMidnight-=(timeMsg->hour*60*60);
-			timeMsg->minute=secondElapsedSinceMidnight/60;
-			secondElapsedSinceMidnight-=(timeMsg->minute*60);
-			timeMsg->second=secondElapsedSinceMidnight;
-			return timeMsg;
-		}
-		else {
-			return new MastervoltMessageFloat(extCanbusId, stdCanbusId, attributeId, parseValueAsFloat());
-		}
-	}
-	else if(attributeId==0x30){
+	if(resolvedAttribute->dataType==MastervoltAttributeKind::MastervoltDataType::LABEL_DT){
 		uint8_t segmentNumber=mbPayloadToParse[3];
 		uint8_t numberOfCharsInPacket=mbPayloadToParse.size()-4;
 		return new MastervoltMessageLabel(extCanbusId, stdCanbusId, attributeId, segmentNumber, mbPayloadToParse.substr(4, numberOfCharsInPacket));
+	}
+	else if(resolvedAttribute->dataType==MastervoltAttributeKind::MastervoltDataType::DATE_DT){
+		MastervoltMessageDate* dateMsg=new MastervoltMessageDate(extCanbusId, stdCanbusId, attributeId);
+		uint32_t nbDaysZeroBC=parseValueAsFloat();
+		ESP_LOGI(__FUNCTION__, "nbDaysZeroBC %d", nbDaysZeroBC);
+
+		//Day of month = float%32, Year=float/32/13, Month=decimal remainder of year*13
+		//840509.00==29/06/2020
+		//840528.00==16/06/2020
+		//840944.00==16/05/2021
+		//840943.00==15/06/2021
+		//840527.00==15/06/2020
+		//840559.00==15/07/2020
+		//840591.00==15/08/2020
+		//832207.00==15/06/2000 : The masterview interface does not allow for less than year 2000
+		//832034.00==02/01/2000 : The interface fails to show the date if we set the date to 01/01/2000. This is probably the default
+
+		dateMsg->day=(nbDaysZeroBC%32)+1;
+		nbDaysZeroBC-=dateMsg->day;
+		float yearAndFraction=nbDaysZeroBC/416.0; //32 days *13 months=416
+		dateMsg->year=yearAndFraction;
+		yearAndFraction-=dateMsg->year;
+		dateMsg->month=round(yearAndFraction*13);
+		return dateMsg;
+	}
+	else if(resolvedAttribute->dataType==MastervoltAttributeKind::MastervoltDataType::TIME_DT){
+		MastervoltMessageTime* timeMsg=new MastervoltMessageTime(extCanbusId, stdCanbusId, attributeId);
+		uint32_t secondElapsedSinceMidnight=parseValueAsFloat();
+		timeMsg->hour=secondElapsedSinceMidnight/60/60;
+		secondElapsedSinceMidnight-=(timeMsg->hour*60*60);
+		timeMsg->minute=secondElapsedSinceMidnight/60;
+		secondElapsedSinceMidnight-=(timeMsg->minute*60);
+		timeMsg->second=secondElapsedSinceMidnight;
+		return timeMsg;
+	}
+	else if(resolvedAttribute->dataType==MastervoltAttributeKind::MastervoltDataType::SIMPLE_FLOAT_DT){
+		return new MastervoltMessageFloat(extCanbusId, stdCanbusId, attributeId, parseValueAsFloat());
 	}
 
 	return new MastervoltMessageUnknown(extCanbusId, stdCanbusId, attributeId, mbPayloadToParse);
@@ -153,6 +151,7 @@ MastervoltDictionary::MastervoltDictionary() :
 	dcShuntDeviceKind->addAttribute(DCSHUNT_BATTERY_TEMPERATURE, "BatteryTemperature", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::SIMPLE_FLOAT_DT);
 	dcShuntDeviceKind->addAttribute(DCSHUNT_DATE, "Date", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::DATE_DT);
 	dcShuntDeviceKind->addAttribute(DCSHUNT_TIME, "Time", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::TIME_DT);
+	dcShuntDeviceKind->addAttribute(0x04, "ChargeTimeRemainig?", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::SIMPLE_FLOAT_DT);
 
 	MastervoltDeviceKind* inverterDeviceKind=new MastervoltDeviceKind(INVERTER_KIND, "InverterDevice");
 	deviceKind.insert(std::pair<uint32_t, MastervoltDeviceKind*>(inverterDeviceKind->deviceKind, inverterDeviceKind));
@@ -176,9 +175,9 @@ MastervoltDictionary::MastervoltDictionary() :
 
 	MastervoltDeviceKind* deviceShownOnCustomPanel=new MastervoltDeviceKind(0x061b, "deviceShownOnCustomPanel");
 	deviceKind.insert(std::pair<uint32_t, MastervoltDeviceKind*>(deviceShownOnCustomPanel->deviceKind, deviceShownOnCustomPanel));
-	deviceShownOnCustomPanel->addAttribute(0x00, "Always Zero?", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::SIMPLE_FLOAT_DT);
-	deviceShownOnCustomPanel->addAttribute(0x01, "Always One?", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::SIMPLE_FLOAT_DT);
-	deviceShownOnCustomPanel->addAttribute(0x02, "UKN0x02", MastervoltAttributeKind::STRING_ENCODING, MastervoltAttributeKind::BYTES_DT);
+	deviceShownOnCustomPanel->addAttribute(0x00, "Always Zero?", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::UNKNOWN_DT);
+	deviceShownOnCustomPanel->addAttribute(0x01, "Always One?", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::UNKNOWN_DT);
+	deviceShownOnCustomPanel->addAttribute(0x02, "UKN0x02", MastervoltAttributeKind::STRING_ENCODING, MastervoltAttributeKind::UNKNOWN_DT);
 
 
 	MastervoltDeviceKind* deviceRefrencingOthers=new MastervoltDeviceKind(0x010e, "deviceRefrencingOthers");
@@ -188,6 +187,10 @@ MastervoltDictionary::MastervoltDictionary() :
 	MastervoltDeviceKind* deviceRefrencingOthers2=new MastervoltDeviceKind(0x011b, "deviceRefrencingOthers2");
 	deviceKind.insert(std::pair<uint32_t, MastervoltDeviceKind*>(deviceRefrencingOthers2->deviceKind, deviceRefrencingOthers2));
 	deviceRefrencingOthers2->addAttribute(0x1b, "Always 1B_97_12_3_2_2_0_0_ ? ", MastervoltAttributeKind::STRING_ENCODING, MastervoltAttributeKind::UNKNOWN_DT);
+
+	MastervoltDeviceKind* unknownFloats=new MastervoltDeviceKind(0x023b, "unknownFloats");
+	deviceKind.insert(std::pair<uint32_t, MastervoltDeviceKind*>(unknownFloats->deviceKind, unknownFloats));
+	unknownFloats->addAttribute(0x08, "Some float ", MastervoltAttributeKind::FLOAT_ENCODING, MastervoltAttributeKind::UNKNOWN_DT);
 }
 
 std::string MastervoltDictionary::toString() const {
