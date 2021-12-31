@@ -1,8 +1,10 @@
 #include <MCP2515.h>
 #include <freertos/task.h>
 #include <masterbusController.h>
+#include <arpa/inet.h>
 
 void configureOutputPin(gpio_num_t pin){
+  ESP_LOGD(__FUNCTION__, "pin=%d", pin);
 	gpio_pad_select_gpio(pin);
 	gpio_set_direction(pin, GPIO_MODE_OUTPUT);
 }
@@ -46,7 +48,7 @@ long autoDetectBaudRate(MCP2515Class& mcp2515){
 	return 0;
 }
 
-MasterbusController::MasterbusController(MCP2515Class* mcp2515): mcp2515(mcp2515), keepPumping(false) {
+MasterbusController::MasterbusController(MCP2515Class* mcp2515): mcp2515(mcp2515), keepPumping(false), taskPumpMToQueueHandle(NULL) {
 	pumpQueue=xQueueCreate(10, sizeof(CANBusPacket));
 }
 
@@ -55,17 +57,25 @@ MasterbusController::~MasterbusController(){
 }
 
 bool MasterbusController::readPacket(CANBusPacket& packet){
+#ifdef ENABLING_THIS_SEEMS_TO_BE_CAUSING_TOO_MUCH_DELAYS
 	if(mcp2515->getAndClearRxOverflow()){
 		ESP_LOGW(__FUNCTION__, "Canbus RX overflow occured. We have lost some messages");
 	}
+#endif
+
 	bool hasPacket=mcp2515->parsePacket();
 	if(hasPacket){
 		if(mcp2515->packetDlc()==0){
-			ESP_LOGW(__FUNCTION__, "These packets are sent by the masterview, every 30 seconds. They request data to keep coming. But how is the data selected as we change the pages?");
+			ESP_LOGW(__FUNCTION__, "These empty packets are sent by the masterview, every 30 seconds. They request data to keep coming. But how is the data selected as we change the pages?");
+		}
+		if(0xFFFFFF1F==mcp2515->packetId()){
+      ESP_LOGW(__FUNCTION__, "Got a invalid packet. Maybe the MCP2515 is not initialized properly?");
+		  return false;
 		}
 
 //		mcp2515->dumpRegisterState();
 		packet.canId=mcp2515->packetId();
+//		packet.canId=htonl(packet.canId);
 		packet.stdCanbusId= (packet.canId&0xFFFC0000)>>18; //This might be a deviceKind Id
 		packet.extCanbusId= (packet.canId&0x0003FFFF);     //This might be a device unique ID
 
@@ -86,7 +96,7 @@ void MasterbusController::pumpCanbusToQueue(void* thisObjPtr){
 	  while (thisObj->keepPumping) {
 //		  ESP_LOGD(__FUNCTION__, "Waitingfor a canbus packet");
 		  if(thisObj->readPacket(canbusPacketToQueue)){
-			  ESP_LOGD(__FUNCTION__, "RX Packet, forward it to the queue");
+//			  ESP_LOGD(__FUNCTION__, "RX Packet, forward it to the queue");
 			  if(xQueueSendToBack(thisObj->pumpQueue, &canbusPacketToQueue, 0)!=pdTRUE){
 				  ESP_LOGE(__FUNCTION__, "Failed to enqueue canbus packet. Maybe queue is full?");
 			  }
@@ -98,7 +108,11 @@ void MasterbusController::pumpCanbusToQueue(void* thisObjPtr){
 
 void MasterbusController::startCANBusPump(){
 	this->keepPumping=true;
-	xTaskCreate(MasterbusController::pumpCanbusToQueue, "pumpCanbusToQueue", 2048, this, 5, &taskPumpMToQueueHandle);
+	xTaskCreatePinnedToCore(MasterbusController::pumpCanbusToQueue, "pumpCanbusToQueue", 2048, this, 5, &taskPumpMToQueueHandle, 0);
+}
+
+bool MasterbusController::isCANBusPumping(){
+	return taskPumpMToQueueHandle!=NULL;
 }
 
 void MasterbusController::stopCANBusPump(){
@@ -106,10 +120,10 @@ void MasterbusController::stopCANBusPump(){
 //	vTaskDelete(taskPumpMToQueueHandle);
 }
 
-void MasterbusController::send(long int canId, uint8_t* canDataToSend, uint32_t canDataLenToSend){
+void MasterbusController::send(uint32_t canId, uint8_t* canDataToSend, uint32_t canDataLenToSend){
 	mcp2515->getAndClearRegister(REG_CANINTF);
 
-	ESP_LOGW(__FUNCTION__, "Sending %d bytes to 0x%lx", canDataLenToSend, canId);
+	ESP_LOGW(__FUNCTION__, "Sending %d bytes to 0x%x", canDataLenToSend, canId);
 	ESP_LOG_BUFFER_HEXDUMP("  canDataToSend ", canDataToSend, canDataLenToSend, ESP_LOG_DEBUG);
 	mcp2515->beginExtendedPacket(canId, canDataLenToSend, true);
 
@@ -122,7 +136,7 @@ void MasterbusController::send(long int canId, uint8_t* canDataToSend, uint32_t 
 //	vTaskDelay(15);
 }
 
-void MasterbusController::configure(int operationalMode) {
+int MasterbusController::configure(int operationalMode) {
 	mcp2515->setOperationalMode(operationalMode);
 	mcp2515->clearAllFilters();
 	long masterBusBaudRate=250000;
@@ -132,9 +146,12 @@ void MasterbusController::configure(int operationalMode) {
 		return;
 	}
 #endif
-	mcp2515->begin(masterBusBaudRate);
+	if(0!=mcp2515->begin(masterBusBaudRate)){
+	  return ESP_FAIL;
+	}
 
 	mcp2515->attachInterrupt(MCP2515Class::handleInterrupt);
+	return ESP_OK;
 }
 
 CANBusPacket::CANBusPacket() : 	canId(0), stdCanbusId(0), extCanbusId(0), dataLen(0), isDirty(false){
