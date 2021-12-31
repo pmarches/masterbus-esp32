@@ -10,6 +10,8 @@
 #include <freertos/task.h>
 #include <freertos/semphr.h>
 
+#define TAG __FILE__
+
 #define REG_BFPCTRL                0x0c
 #define REG_TXRTSCTRL              0x0d
 #define REG_CANSTAT 0xe
@@ -84,14 +86,14 @@ MCP2515Class::~MCP2515Class()
 
 int MCP2515Class::begin(long baudRate)
 {
-	ESP_LOGD(__FUNCTION__, "Setting baudrate at %ld", baudRate);
+	ESP_LOGD(TAG, "Setting baudrate at %ld", baudRate);
   CANControllerClass::begin(baudRate);
 
   //  spi.begin();
   reset();
 
   if(setMode(CONFIGURATION_MODE)!=0){
-	  ESP_LOGE(__FUNCTION__, "Failed to go to configuration mode");
+	  ESP_LOGE(TAG, "Failed to go to configuration mode");
 	  return 1;
   }
 
@@ -137,7 +139,7 @@ int MCP2515Class::begin(long baudRate)
   }
 
   if (cnf == NULL) {
-	  ESP_LOGE(__FUNCTION__, "Failed to configure for clock freq %ld and baudrate %ld", _clockFrequency, baudRate);
+	  ESP_LOGE(TAG, "Failed to configure for clock freq %ld and baudrate %ld", _clockFrequency, baudRate);
     return 1;
   }
 
@@ -152,7 +154,7 @@ int MCP2515Class::begin(long baudRate)
   writeRegister(REG_RXBnCTRL(1), FLAG_RXM1 | FLAG_RXM0);
 
   if (setMode(_operationalMode)) {
-	  ESP_LOGE(__FUNCTION__, "Failed to go to mode %x", _operationalMode);
+	  ESP_LOGE(TAG, "Failed to go to mode %x", _operationalMode);
     return 1;
   }
 
@@ -169,7 +171,7 @@ void MCP2515Class::end()
 int MCP2515Class::endPacket()
 {
   if (!CANControllerClass::endPacket()) {
-	  ESP_LOGE(__FUNCTION__, "CANControllerClass::endPacket failed");
+	  ESP_LOGE(TAG, "CANControllerClass::endPacket failed");
     return 0;
   }
 
@@ -191,10 +193,10 @@ int MCP2515Class::endPacket()
     writeRegister(REG_TXBnDLC(n), 0x40 | _txLength);
   } else {
     writeRegister(REG_TXBnDLC(n), _txLength);
-//    ESP_LOGD(__FUNCTION__, "_txLength=%d", _txLength);
+    ESP_LOGD(TAG, "_txLength=%d", _txLength);
 
     for (int i = 0; i < _txLength; i++) {
-//	ESP_LOGD(__FUNCTION__, "_txData[i]=%x", _txData[i]);
+	ESP_LOGD(TAG, "_txData[i]=%x", _txData[i]);
       writeRegister(REG_TXBnD0(n) + i, _txData[i]);
     }
   }
@@ -204,7 +206,7 @@ int MCP2515Class::endPacket()
   while (readRegister(REG_TXBnCTRL(n)) & 0x08) {
     if (readRegister(REG_TXBnCTRL(n)) & 0x10) {
       // abort
-    	ESP_LOGE(__FUNCTION__, "Aborting");
+    	ESP_LOGE(TAG, "Aborting");
       modifyRegister(REG_CANCTRL, 0x10, 0x10);
     }
 
@@ -219,7 +221,7 @@ int MCP2515Class::endPacket()
 int MCP2515Class::parsePacket()
 {
   uint8_t intf = readRegister(REG_CANINTF);
-//  ESP_EARLY_LOGD(__FUNCTION__, "intf=%x", intf);
+//  ESP_EARLY_LOGD(TAG, "intf=%x", intf);
 
   uint8_t whichRxBuffer;
   if (intf & FLAG_RXnIF(0)) {
@@ -231,7 +233,7 @@ int MCP2515Class::parsePacket()
     _rxExtended = false;
     _rxRtr = false;
     _rxLength = 0;
-//    ESP_LOGD(__FUNCTION__, "RX in neither buffers");
+    ESP_LOGD(TAG, "RX in neither buffers");
     return false;
   }
 
@@ -251,8 +253,8 @@ int MCP2515Class::parsePacket()
   }
   _rxDlc = readRegister(REG_RXBnDLC(whichRxBuffer)) & 0x0f;
   _rxIndex = 0;
-
-  if (_rxRtr) {
+//FIXME This prevents us from reading the data..
+  if (false && _rxRtr) {
     _rxLength = 0;
   } else {
     _rxLength = _rxDlc;
@@ -263,11 +265,11 @@ int MCP2515Class::parsePacket()
   }
 
 #if 0
-  ESP_LOGD(__FUNCTION__, "_rxExtended=%d", _rxExtended);
-  ESP_LOGD(__FUNCTION__, "_rxId=0x%x", (uint32_t) _rxId);
-  ESP_LOGD(__FUNCTION__, "_rxRtr=%d", _rxRtr);
-  ESP_LOGD(__FUNCTION__, "_rxDlc=%d", _rxDlc);
-  ESP_LOGD(__FUNCTION__, "_rxIndex=%d", _rxIndex);
+  ESP_EARLY_LOGD(TAG, "_rxExtended=%d", _rxExtended);
+  ESP_EARLY_LOGD(TAG, "_rxId=0x%x", (uint32_t) _rxId);
+  ESP_EARLY_LOGD(TAG, "_rxRtr=%d", _rxRtr);
+  ESP_EARLY_LOGD(TAG, "_rxDlc=%d", _rxDlc);
+  ESP_EARLY_LOGD(TAG, "_rxIndex=%d", _rxIndex);
 #endif
 
   modifyRegister(REG_CANINTF, FLAG_RXnIF(whichRxBuffer), 0x00);
@@ -276,15 +278,15 @@ int MCP2515Class::parsePacket()
 }
 
 void MCP2515Class::handleInterrupt(void* thisObjPtr) {
-//  ESP_EARLY_LOGD(__FUNCTION__, "Begin %p", thisObjPtr);
+  ESP_EARLY_LOGD(TAG, "Begin %p", thisObjPtr);
   MCP2515Class* thisObj=(MCP2515Class*) thisObjPtr;
   xSemaphoreGiveFromISR(thisObj->msgPumpSemaphore, NULL);
 
-//  ESP_EARLY_LOGD(__FUNCTION__, "End");
+  ESP_EARLY_LOGD(TAG, "End");
 }
 
 void MCP2515Class::attachInterrupt(gpio_isr_t canbusInterruptHandler){
-	ESP_LOGD(__FUNCTION__, "Begin");
+	ESP_LOGD(TAG, "Begin");
 	gpio_config_t gpioConfig = {
 		.pin_bit_mask = (1ul<<_intPin),
 		.mode	= GPIO_MODE_INPUT,
@@ -294,12 +296,12 @@ void MCP2515Class::attachInterrupt(gpio_isr_t canbusInterruptHandler){
 	};
 	gpio_config(&gpioConfig);
 	gpio_install_isr_service(0);
-	ESP_LOGD(__FUNCTION__, "this=%p", this);
+	ESP_LOGD(TAG, "this=%p", this);
 	gpio_isr_handler_add(_intPin, canbusInterruptHandler, this);
 	gpio_intr_enable(_intPin);
 
 	writeRegister(REG_CANINTF, 0); //Clear any existing interrupt
-	ESP_LOGD(__FUNCTION__, "End");
+	ESP_LOGD(TAG, "End");
 }
 
 void MCP2515Class::clearAllFilters(){
@@ -377,11 +379,11 @@ int MCP2515Class::filterExtended(long id, long mask)
 
 int MCP2515Class::setMode(uint8_t newMode)
 {
-	ESP_LOGD(__FUNCTION__, "readRegister(REG_CANCTRL)=%x", readRegister(REG_CANCTRL));
+	ESP_LOGD(TAG, "readRegister(REG_CANCTRL)=%x", readRegister(REG_CANCTRL));
 	uint8_t modeMask=0b11100000;
   modifyRegister(REG_CANCTRL, modeMask, newMode);
   if ((readRegister(REG_CANCTRL)&modeMask) != newMode) {
-	ESP_LOGE(__FUNCTION__, "Failed to go into mode %x", newMode);
+	ESP_LOGE(TAG, "Failed to go into mode %x", newMode);
     return 1;
   }
 
@@ -424,7 +426,7 @@ void MCP2515Class::setClockFrequency(long clockFrequency)
 
 void MCP2515Class::reset()
 {
-	ESP_LOGD(__FUNCTION__, "Begin reset");
+	ESP_LOGD(TAG, "Begin reset");
   //spi.beginTransaction(_spiSettings);
 	gpio_set_level(_csPin, 0); //Select Slave
 
@@ -436,7 +438,7 @@ void MCP2515Class::reset()
 
 //  delayMicroseconds(10);
   vTaskDelay(5);
-	ESP_LOGD(__FUNCTION__, "Done reset");
+	ESP_LOGD(TAG, "Done reset");
 }
 
 uint8_t MCP2515Class::readRegister(uint8_t address)
@@ -478,38 +480,38 @@ uint8_t MCP2515Class::getAndClearRegister(uint8_t registerToGetAndClear){
 }
 
 void MCP2515Class::dumpRegisterState(){
-	ESP_LOGD(__FUNCTION__, "-------------BEGIN-------------");
+	ESP_LOGD(TAG, "-------------BEGIN-------------");
 	uint8_t status=readRegister(REG_CANINTF);
-	ESP_LOGD(__FUNCTION__, "CANINTF %x", status);
-	ESP_LOGD(__FUNCTION__, "	Message Error Interrupt Flag bit: %d", status&0b10000000);
-	ESP_LOGD(__FUNCTION__, "	Wake up Interrupt Flag bit: %d", status&0b01000000);
-	ESP_LOGD(__FUNCTION__, "	Error interrupt Flag bit: %d", status&0b00100000);
-	ESP_LOGD(__FUNCTION__, "	Transmit Buffer 2 Empty interrupt Flag bit: %d", status&0b00010000);
-	ESP_LOGD(__FUNCTION__, "	Transmit Buffer 1 Empty interrupt Flag bit: %d", status&0b00001000);
-	ESP_LOGD(__FUNCTION__, "	Transmit Buffer 0 Empty interrupt Flag bit: %d", status&0b00000100);
-	ESP_LOGD(__FUNCTION__, "	Receive Buffer 1 Empty interrupt Flag bit: %d", status&0b00000010);
-	ESP_LOGD(__FUNCTION__, "	Receive Buffer 0 Empty interrupt Flag bit: %d", status&0b00000001);
+	ESP_LOGD(TAG, "CANINTF %x", status);
+	ESP_LOGD(TAG, "	Message Error Interrupt Flag bit: %d", status&0b10000000);
+	ESP_LOGD(TAG, "	Wake up Interrupt Flag bit: %d", status&0b01000000);
+	ESP_LOGD(TAG, "	Error interrupt Flag bit: %d", status&0b00100000);
+	ESP_LOGD(TAG, "	Transmit Buffer 2 Empty interrupt Flag bit: %d", status&0b00010000);
+	ESP_LOGD(TAG, "	Transmit Buffer 1 Empty interrupt Flag bit: %d", status&0b00001000);
+	ESP_LOGD(TAG, "	Transmit Buffer 0 Empty interrupt Flag bit: %d", status&0b00000100);
+	ESP_LOGD(TAG, "	Receive Buffer 1 Empty interrupt Flag bit: %d", status&0b00000010);
+	ESP_LOGD(TAG, "	Receive Buffer 0 Empty interrupt Flag bit: %d", status&0b00000001);
 
-	ESP_LOGD(__FUNCTION__, "TEC TX Error Counter %d", readRegister(REG_TEC));
-	ESP_LOGD(__FUNCTION__, "REC RX Error Counter %d", readRegister(REG_REC));
+	ESP_LOGD(TAG, "TEC TX Error Counter %d", readRegister(REG_TEC));
+	ESP_LOGD(TAG, "REC RX Error Counter %d", readRegister(REG_REC));
 
 
 	status=readRegister(REG_EFLG);
-	ESP_LOGD(__FUNCTION__, "EFLG: %x", status);
-	ESP_LOGD(__FUNCTION__, "	Receive Buffer 1 Overflow Flag bit : %d", status&0x80);
-	ESP_LOGD(__FUNCTION__, "	Receive Buffer 0 Overflow Flag bit : %d", status&0x40);
-	ESP_LOGD(__FUNCTION__, "	Bus-Off Error Flag bit : %d", status&0x20);
-	ESP_LOGD(__FUNCTION__, "	Transmit Error-Passive Flag bit : %d", status&0x10);
-	ESP_LOGD(__FUNCTION__, "	Receive Error-Passive Flag bit : %d", status&0x08);
-	ESP_LOGD(__FUNCTION__, "	Transmit Error Warning Flag bit : %d", status&0x04);
-	ESP_LOGD(__FUNCTION__, "	Receive Error Warning Flag bit : %d", status&0x02);
-	ESP_LOGD(__FUNCTION__, "	Error Warning Flag bit: %d", status&0x01);
+	ESP_LOGD(TAG, "EFLG: %x", status);
+	ESP_LOGD(TAG, "	Receive Buffer 1 Overflow Flag bit : %d", status&0x80);
+	ESP_LOGD(TAG, "	Receive Buffer 0 Overflow Flag bit : %d", status&0x40);
+	ESP_LOGD(TAG, "	Bus-Off Error Flag bit : %d", status&0x20);
+	ESP_LOGD(TAG, "	Transmit Error-Passive Flag bit : %d", status&0x10);
+	ESP_LOGD(TAG, "	Receive Error-Passive Flag bit : %d", status&0x08);
+	ESP_LOGD(TAG, "	Transmit Error Warning Flag bit : %d", status&0x04);
+	ESP_LOGD(TAG, "	Receive Error Warning Flag bit : %d", status&0x02);
+	ESP_LOGD(TAG, "	Error Warning Flag bit: %d", status&0x01);
 
 	status=readRegister(REG_CANSTAT);
-	ESP_LOGD(__FUNCTION__, "CANSTAT: %x", status);
+	ESP_LOGD(TAG, "CANSTAT: %x", status);
 
 	status=readRegister(REG_TXBnCTRL(0));
-	ESP_LOGD(__FUNCTION__, "REG_TXBnCTRL(0): %x", status);
+	ESP_LOGD(TAG, "REG_TXBnCTRL(0): %x", status);
 }
 
 #define RX1OVR 0x40 //Receive Buffer 1 Overflow Flag bit
