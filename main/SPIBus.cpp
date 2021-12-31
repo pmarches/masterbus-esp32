@@ -1,6 +1,7 @@
 #include <SPIBus.h>
 
 void configurePinAsOutput(gpio_num_t pin){
+  ESP_LOGI(__FUNCTION__, "pin=%d", pin);
 	gpio_pad_select_gpio(pin);
 	gpio_set_direction(pin, GPIO_MODE_OUTPUT);
 }
