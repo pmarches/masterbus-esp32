@@ -3,6 +3,14 @@ Reverse engineering of the masterbus protocol used by mastervolt products.
 
 # Green Mastervolt cable pinout
 
+1-Can High
+2-Can Low
+3-GND
+4-+12V
+5-+12V
+6-GND
+7-NC
+8-NC
 
 Green: Ground
 
@@ -12,9 +20,9 @@ Blue	: +12 volts
 
 Blue/White : +12 Volts
 
-Red	: CAN L
+2- Red	: CAN L
 
-Red/White: CAN H
+1- Red/White: CAN H
 
 Brown: Not connected
 
@@ -23,7 +31,13 @@ Brown/White: Not connected
 
 # Hardware interface
 
-Masterbus is based on standard canbus. 
+Masterbus is based on standard canbus. The bus speed is 250000. 
+
+sudo ip link set down can0
+
+sudo ip link set can0 type can bitrate 250000 restart-ms 100
+sudo ip link set up can0
+candump -tz can0
 
 # Protocol overview 
 
@@ -89,3 +103,14 @@ This device will query for other devices to announce themselves upon startup. It
 ## Mystery devices
 These are canIds I do not know the purpose.
 0x0209
+What is masterbus-wireshark ?
+----
+This is my attempt at reverseengineering the masterbus protocol.
+
+How can I use it?
+----
+You can start wireshark with the following flags to enable the masterbus dissector. The sample capture files will work with this dissector. However, the packet format is not of the canbus format. In canbus, nothing is byte aligned and I do not want to spend the work doing it.
+
+`
+wireshark -Xlua_script:masterbusDissector.lua
+`

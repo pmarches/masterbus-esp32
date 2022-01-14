@@ -16,6 +16,7 @@ public:
 	uint8_t data[16];
 	uint32_t dataLen;
 	bool isDirty;
+	bool isRequest;
 	CANBusPacket();
 	~CANBusPacket();
 	std::string valueToHexString();
@@ -37,6 +38,7 @@ public:
 	bool isCANBusPumping();
 	bool keepPumping;
 	xTaskHandle taskPumpMToQueueHandle;
+	void hexdumpCanBusPacket(CANBusPacket& canbusPacket);
 };
 
 #endif /* MAIN_INCLUDE_MASTERBUSCONTROLLER_H_ */

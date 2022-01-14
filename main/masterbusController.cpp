@@ -56,6 +56,36 @@ MasterbusController::~MasterbusController(){
 	vQueueDelete(pumpQueue);
 }
 
+#include <memory.h>
+
+void MasterbusController::hexdumpCanBusPacket(CANBusPacket& packet){
+  uint8_t virtualDumpBytes[16];
+  memset(virtualDumpBytes, 0, sizeof(virtualDumpBytes));
+  //CANBus fields are not aligned on byte boundaries, making the hexdump non-trivial. So, I will instead dump the bytes as a follows:
+  //Request flag (either RTR or SRR) (1 byte)
+  //11-Bit identifier + 18-bit identifier (4 bytes)
+  //DLC (payload length) (1 byte)
+  //payload (variable number of bytes, maximum 8)
+  virtualDumpBytes[0]=packet.isRequest;
+  *(uint32_t*) (virtualDumpBytes+1) = packet.canId;
+  virtualDumpBytes[5]=packet.dataLen;
+  memcpy(virtualDumpBytes+6, packet.data, packet.dataLen);
+
+  uint8_t virtualDumpBytesLen=8+packet.dataLen;
+  ESP_LOG_BUFFER_HEXDUMP("CANBUS_HEXDUMP", virtualDumpBytes, virtualDumpBytesLen, ESP_LOG_DEBUG);
+  for(uint32_t i=0; i<virtualDumpBytesLen; i++){
+    if(i==0){
+      printf("%04X ", i);
+    }
+    else if(i%16 ==0){
+      printf("\n%04X ", i);
+    }
+    printf("%02X ", virtualDumpBytes[i]);
+  }
+  printf("\n%04X\n", ((virtualDumpBytesLen/16)+1)*16);
+}
+
+
 bool MasterbusController::readPacket(CANBusPacket& packet){
 #ifdef ENABLING_THIS_SEEMS_TO_BE_CAUSING_TOO_MUCH_DELAYS
 	if(mcp2515->getAndClearRxOverflow()){
@@ -75,6 +105,7 @@ bool MasterbusController::readPacket(CANBusPacket& packet){
 
 //		mcp2515->dumpRegisterState();
 		packet.canId=mcp2515->packetId();
+		packet.isRequest=mcp2515->_rxRtr;
 //		packet.canId=htonl(packet.canId);
 		packet.stdCanbusId= (packet.canId&0xFFFC0000)>>18; //This might be a deviceKind Id
 		packet.extCanbusId= (packet.canId&0x0003FFFF);     //This might be a device unique ID
