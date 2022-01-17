@@ -29,23 +29,24 @@ Brown: Not connected
 Brown/White: Not connected
 
 
-# Hardware interface
+# CANBus configuration
 
 Masterbus is based on standard canbus. The bus speed is 250000. 
 
-sudo ip link set down can0
+`sudo ip link set down can0`
 
-sudo ip link set can0 type can bitrate 250000 restart-ms 100
-sudo ip link set up can0
-candump -tz can0
+`sudo ip link set can0 type can bitrate 250000 restart-ms 100`
+
+`sudo ip link set up can0`
+
+`sudo ip -details -statistics link show can0`
+
+
 
 # Protocol overview 
 
-The protocol is inspired by a request/response scheme. When a masterview device starts up, it broadcasts a packet that requires connected devices to tell the masterview what attributes they offer. Then, the masterview will send a request to each networked device to request the value of a particular attribute. The value is transmitted in clear, as a IEEE734 float. 
+The protocol is inspired by a request/response scheme. When a masterview device starts up, it broadcasts a message that requires connected devices to tell the masterview what attributes they offer. Then, the masterview will send a request to each networked device to request the value of a particular attribute. The value is transmitted in clear, as a IEEE734 float. 
 
-# CANId
-
-Each device on the bus had a different canbus Id. Devices of the same type have different canids. When the first bit of the can id is set, this indicates a request for an attribute's value. The CanIds of identical devies share some bits, but are unique. The numbers do not relate to the serial numbers printed on the devices. 
 
 #CAN Packet format
 
@@ -53,64 +54,57 @@ Values are sent over the wire encoded as floats. Labels for units such as "A" fo
 
 #Devices
 
-## Mastervolt DC Shunt labels
-CANId is 0x019b
+The masscombi and DCShunt are the device supplying power power to the bus. The masterview starts talking on the bus later because it needs time to boot up.
 
-## Mastervolt DC Shunt field values
-CANId is 0x021b
+#Groups & Items
+For the masscombi:
+Group1 + Item1 = 16 = 0x10 --> State Inverting
+Group1 + Item2 = 60 = 0x3C
+Group1 + Item3 = 56 = 0x38
+Group1 + Item4 = 20 = 0x14
+Group1 + Item5 = 58 = 0x3A
+Group1 + Item6 = 19 = 0x13
+Group1 + Item7 = 14 = 0x0E
+Group1 + Item8 = 17 = 0x11
+Group1 + Item9 = -- = --
 
-|000 | Percentage full|
-|001 | Volts |
-|002 | Battery Amps flow|
-|003 | Battery Amps consumed|
-|004 | ??????? |
-|005 | Battery temperature in celcius|
-|009 | Current Time (On 24/08/2021, at 04:50:00 local time, I saw the value 17400.0)|
-|00A | Maybe the date -OR- seomthing to do with configuration |
+Group2 + Item1 = 18 = 0x12
+Group2 + Item2 =  6 = 0x06
+Group2 + Item3 =  7 = 0x07
+Group2 + Item4 =  -- = --
 
-## Labels of the masscombi
-CanId 0x022E
-I think these field ids represents various labels to b displayed on the masterview.
+Group3 + Item1 =  8 = 0x08
+Group3 + Item2 =  9 = 0x09
+Group3 + Item3 = -- = --
 
-## Field values of the masscombi
-CANId is 0x020E
+Group4 + Item1 = 10 = 0x0A --> AC Output 120V (0x0A)
+Group4 + Item2 = 11 = 0x0B
+Group4 + Item3 = -- = --
 
-|0000| AC Output Amps |
-|0006| Inverter DC input voltage |
-|0007| Inverter DC amp flow |
-|0008| AC input voltage (For DC Charger and/or maybe the power assist function?) |
-|0009| AC input amps (For DC Charger and/or maybe the power assist function?) |
-|000A| AC output voltage |
-|000B| AC output amps |
-|0010| Invverter state? I saw the value 3.0==When inverting only, charger is off |
-|0011| Load in percent|
-|0012| State of charger 5.0=No shore power| 
-|0013| Shore power shore fuse: 14.0=18 Amps| 
-|0014| Inverter switch state. 1.0=On|
-|000E| Input genset 0.0=off |
-|0038| Masscombi power state. 1.0=On |
-|003A| Battery charger switch 0.0=Off |
-|003C| Mode |
+Group5 + Item1 = -- = --
 
-## Battery charger of the masscombi
-CANId is 0x0667
+For the DC Shunt:
+Group1 + Item1 = 0 = 0x00
+Group1 + Item2 = 4 = 0x04
+Group1 + Item3 = 3 = 0x03
+Group1 + Item4 = 1 = 0x01
+
+There is probably some sort of lookup done to resolve the group&Item to a single number.
+
+#Items
+Each device has a number of "items" that can be monitored. For example the DCShunt has a voltage item. On the masterview, when you configure the favorites page, you enter the item number you want to see in each area. Item numbers are device dependent, and are reused for different purpose across different devices.
 
 ## Masterview display device
 CANId is 0x0194
 
 This device will query for other devices to announce themselves upon startup. It will then start querying regularly for certain field values from selected devices. The fields selected reflect what is required to be displayed on the screen.
 
-## Mystery devices
-These are canIds I do not know the purpose.
-0x0209
-What is masterbus-wireshark ?
-----
-This is my attempt at reverseengineering the masterbus protocol.
-
-How can I use it?
+How can I use the wireshark dissector?
 ----
 You can start wireshark with the following flags to enable the masterbus dissector. The sample capture files will work with this dissector. However, the packet format is not of the canbus format. In canbus, nothing is byte aligned and I do not want to spend the work doing it.
 
-`
-wireshark -Xlua_script:masterbusDissector.lua
-`
+`wireshark -Xlua_script:masterbusDissector.lua`
+
+How can I capture my own wireshark capture file?
+---
+`tshark -i can0 -w ~/my_capture_file.pcap`
