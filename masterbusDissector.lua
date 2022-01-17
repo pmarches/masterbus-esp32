@@ -234,6 +234,9 @@ end
 
 function parseEmptyMessage(buffer,pinfo,tree)
     pinfo.cols.info:set("parseEmptyMessage");
+    if(buffer:len()~=0) then
+        tree:add_tvb_expert_info(unhandledPacket, buffer)
+    end
 end
 
 function parseByteRefBytesMessage(buffer,pinfo,tree)

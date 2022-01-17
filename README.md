@@ -57,45 +57,44 @@ Values are sent over the wire encoded as floats. Labels for units such as "A" fo
 The masscombi and DCShunt are the device supplying power power to the bus. The masterview starts talking on the bus later because it needs time to boot up.
 
 #Groups & Items
-For the masscombi:
-Group1 + Item1 = 16 = 0x10 --> State Inverting
-Group1 + Item2 = 60 = 0x3C
-Group1 + Item3 = 56 = 0x38
-Group1 + Item4 = 20 = 0x14
-Group1 + Item5 = 58 = 0x3A
-Group1 + Item6 = 19 = 0x13
-Group1 + Item7 = 14 = 0x0E
-Group1 + Item8 = 17 = 0x11
-Group1 + Item9 = -- = --
-
-Group2 + Item1 = 18 = 0x12
-Group2 + Item2 =  6 = 0x06
-Group2 + Item3 =  7 = 0x07
-Group2 + Item4 =  -- = --
-
-Group3 + Item1 =  8 = 0x08
-Group3 + Item2 =  9 = 0x09
-Group3 + Item3 = -- = --
-
-Group4 + Item1 = 10 = 0x0A --> AC Output 120V (0x0A)
-Group4 + Item2 = 11 = 0x0B
-Group4 + Item3 = -- = --
-
-Group5 + Item1 = -- = --
-
-For the DC Shunt:
-Group1 + Item1 = 0 = 0x00
-Group1 + Item2 = 4 = 0x04
-Group1 + Item3 = 3 = 0x03
-Group1 + Item4 = 1 = 0x01
-
+Each device has a number of "items" that can be monitored. For example the DCShunt has a voltage item. On the masterview, when you configure the favorites page, you enter the item number you want to see in each area. Item numbers are device dependent, and are reused for different purpose across different devices.
 There is probably some sort of lookup done to resolve the group&Item to a single number.
 
-#Items
-Each device has a number of "items" that can be monitored. For example the DCShunt has a voltage item. On the masterview, when you configure the favorites page, you enter the item number you want to see in each area. Item numbers are device dependent, and are reused for different purpose across different devices.
+      For the masscombi:
+      Group1 + Item1 = 16 = 0x10 --> State Inverting
+      Group1 + Item2 = 60 = 0x3C
+      Group1 + Item3 = 56 = 0x38
+      Group1 + Item4 = 20 = 0x14
+      Group1 + Item5 = 58 = 0x3A
+      Group1 + Item6 = 19 = 0x13
+      Group1 + Item7 = 14 = 0x0E
+      Group1 + Item8 = 17 = 0x11
+      Group1 + Item9 = -- = --
+      
+      Group2 + Item1 = 18 = 0x12
+      Group2 + Item2 =  6 = 0x06
+      Group2 + Item3 =  7 = 0x07
+      Group2 + Item4 =  -- = --
+      
+      Group3 + Item1 =  8 = 0x08
+      Group3 + Item2 =  9 = 0x09
+      Group3 + Item3 = -- = --
+      
+      Group4 + Item1 = 10 = 0x0A --> AC Output 120V (0x0A)
+      Group4 + Item2 = 11 = 0x0B
+      Group4 + Item3 = -- = --
+      
+      Group5 + Item1 = -- = --
+      
+      For the DC Shunt:
+      Group1 + Item1 = 0 = 0x00
+      Group1 + Item2 = 4 = 0x04
+      Group1 + Item3 = 3 = 0x03
+      Group1 + Item4 = 1 = 0x01
+
 
 ## Masterview display device
-CANId is 0x0194
+Device Id is 0x0194 or 0x840a
 
 This device will query for other devices to announce themselves upon startup. It will then start querying regularly for certain field values from selected devices. The fields selected reflect what is required to be displayed on the screen.
 
