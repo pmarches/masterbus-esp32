@@ -312,7 +312,7 @@ function masterbus_proto.dissector(buffer,pinfo,tree)
     
     pinfo.cols.info:set("")
     pinfo.cols.protocol = masterbus_proto.name
-    local toptree = tree:add(masterbus_proto, buffer(02),"Masterbus message")
+    local toptree = tree:add(masterbus_proto, buffer(0),"Masterbus message")
 
     local messageKind=bit.rshift(bit.band(canIdBuf:le_uint(), 0x1FFC0000), 18)
 --     MESSAGE_ID_TO_FRAMENUM[messageKind]=pinfo.number
