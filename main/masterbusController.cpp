@@ -185,7 +185,7 @@ int MasterbusController::configure(int operationalMode) {
 	return ESP_OK;
 }
 
-CANBusPacket::CANBusPacket() : 	canId(0), stdCanbusId(0), extCanbusId(0), dataLen(0), isDirty(false){
+CANBusPacket::CANBusPacket() : 	canId(0), stdCanbusId(0), extCanbusId(0), dataLen(0), isDirty(false), isRequest(false) {
 }
 
 CANBusPacket::~CANBusPacket() {

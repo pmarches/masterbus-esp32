@@ -10,7 +10,7 @@
 #include <freertos/task.h>
 #include <freertos/semphr.h>
 
-#define TAG __FILE__
+#define TAG __FUNCTION__
 
 #define REG_BFPCTRL                0x0c
 #define REG_TXRTSCTRL              0x0d
