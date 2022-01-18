@@ -9,7 +9,7 @@
 #include <iterator>
 #include <math.h>
 
-MastervoltMessage* MvParser::parse(uint32_t stdCanbusId, uint32_t extCanbusId, std::string& mbPayloadToParse){
+MastervoltMessage* MvParser::parse(uint32_t stdCanbusId, uint32_t extCanbusId, const std::string& mbPayloadToParse){
 	ESP_LOGI(__FUNCTION__, "stdCanbusId=%x extCanbusId=%x", stdCanbusId, extCanbusId);
 	this->stringToParse=mbPayloadToParse;
 	ESP_LOG_BUFFER_HEXDUMP(__FUNCTION__, mbPayloadToParse.c_str(), mbPayloadToParse.size(), ESP_LOG_INFO);
