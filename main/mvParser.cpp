@@ -1,7 +1,6 @@
 #include "mvParser.hpp"
 
 #include <esp_log.h>
-#include <mastervoltMessage.hpp>
 #include <memory.h>
 
 #include <sstream>
@@ -9,8 +8,95 @@
 #include <iterator>
 #include <math.h>
 
+#include <mastervoltMessage.hpp>
+
+uint16_t MvParser::getShortAttributeFromPayload(const std::string &mbPayloadToParse) {
+  return *(uint16_t*) ((mbPayloadToParse.c_str()));
+}
+
+float MvParser::getFloatFromPayloadAtOffset(const std::string &mbPayloadToParse, const uint8_t offset) {
+  return *(float*) ((mbPayloadToParse.c_str() + offset));
+}
+
+void MvParser::convertMastervoltFloatToTime(float floatValue, MastervoltMessageTime* timeMsg){
+  uint32_t secondElapsedSinceMidnight=floatValue;
+  timeMsg->hour=secondElapsedSinceMidnight/60/60;
+  secondElapsedSinceMidnight-=(timeMsg->hour*60*60);
+  timeMsg->minute=secondElapsedSinceMidnight/60;
+  secondElapsedSinceMidnight-=(timeMsg->minute*60);
+  timeMsg->second=secondElapsedSinceMidnight;
+}
+
+void MvParser::convertMastervoltFloatToDate(float floatTimestamp, MastervoltMessageDate* dateMsg){
+  uint32_t nbDaysZeroBC=floatTimestamp;
+  ESP_LOGI(__FUNCTION__, "nbDaysZeroBC %d", nbDaysZeroBC);
+
+  dateMsg->day=(nbDaysZeroBC%32);
+  nbDaysZeroBC-=dateMsg->day;
+  float yearAndFraction=nbDaysZeroBC/(32.0*13); //32 days *13 months=416
+  dateMsg->year=yearAndFraction;
+  yearAndFraction-=dateMsg->year;
+  dateMsg->month=round(yearAndFraction*13);
+}
+
+MastervoltMessage* MvParser::parseDCShuntResponseItemAndFloat(uint32_t stdCanbusId, uint32_t extCanbusId, const std::string& mbPayloadToParse){
+  ESP_LOGI(__FUNCTION__, "stdCanbusId=0x%x extCanbusId=0x%x", stdCanbusId, extCanbusId);
+  ESP_LOG_BUFFER_HEXDUMP(__FUNCTION__, mbPayloadToParse.c_str(), mbPayloadToParse.size(), ESP_LOG_DEBUG);
+
+  if(mbPayloadToParse.size()!=6){
+    ESP_LOGE(__FUNCTION__, "mbPayloadToParse.size() needs at least 6 bytes, but has only %d", mbPayloadToParse.size());
+    return NULL;
+  }
+
+  uint16_t attribute=getShortAttributeFromPayload(mbPayloadToParse);
+  if(0x09==attribute){
+    float floatValue = getFloatFromPayloadAtOffset(mbPayloadToParse, 2);
+    MastervoltMessageTime* timeMsg=new MastervoltMessageTime(extCanbusId, stdCanbusId, attribute);
+    convertMastervoltFloatToTime(floatValue, timeMsg);
+    return timeMsg;
+  }
+  else if(0x0a==attribute){
+    float floatValue = getFloatFromPayloadAtOffset(mbPayloadToParse, 2);
+    MastervoltMessageDate* dateMsg=new MastervoltMessageDate(extCanbusId, stdCanbusId, attribute);
+    convertMastervoltFloatToDate(floatValue, dateMsg);
+    return dateMsg;
+  }
+  else{
+    float floatValue = getFloatFromPayloadAtOffset(mbPayloadToParse, 2);
+    MastervoltMessageFloat* floatMsg=new MastervoltMessageFloat(extCanbusId, stdCanbusId, attribute, floatValue);
+    return floatMsg;
+  }
+}
+
+MastervoltMessage* MvParser::parseMasscombiResponseItemAndFloat(uint32_t stdCanbusId, uint32_t extCanbusId, const std::string& mbPayloadToParse){
+  ESP_LOGI(__FUNCTION__, "stdCanbusId=0x%x extCanbusId=0x%x", stdCanbusId, extCanbusId);
+
+  if(mbPayloadToParse.size()!=6){
+    ESP_LOGE(__FUNCTION__, "mbPayloadToParse.size() needs at least 6 bytes, but has only %d", mbPayloadToParse.size());
+    return NULL;
+  }
+  ESP_LOG_BUFFER_HEXDUMP(__FUNCTION__, mbPayloadToParse.c_str(), mbPayloadToParse.size(), ESP_LOG_DEBUG);
+
+  uint16_t attribute = getShortAttributeFromPayload(mbPayloadToParse);
+  float floatValue = getFloatFromPayloadAtOffset(mbPayloadToParse, 2);
+  MastervoltMessageFloat* floatMsg=new MastervoltMessageFloat(extCanbusId, stdCanbusId, attribute, floatValue);
+  return floatMsg;
+}
+
+MastervoltMessage* MvParser::parseStdCanbusId(uint32_t stdCanbusId, uint32_t extCanbusId, const std::string& mbPayloadToParse){
+  ESP_LOGI(__FUNCTION__, "stdCanbusId=0x%x extCanbusId=0x%x", stdCanbusId, extCanbusId);
+  if(0x21b==stdCanbusId){
+    return parseDCShuntResponseItemAndFloat(stdCanbusId, extCanbusId, mbPayloadToParse);
+  }
+  if(0x020e==stdCanbusId){
+    return parseMasscombiResponseItemAndFloat(stdCanbusId, extCanbusId, mbPayloadToParse);
+  }
+  ESP_LOGE(__FUNCTION__, "Don't know how to parse stdCanbusId=0x%x extCanbusId=0x%x", stdCanbusId, extCanbusId);
+  return NULL;
+}
+
 MastervoltMessage* MvParser::parse(uint32_t stdCanbusId, uint32_t extCanbusId, const std::string& mbPayloadToParse){
-	ESP_LOGI(__FUNCTION__, "stdCanbusId=%x extCanbusId=%x", stdCanbusId, extCanbusId);
+	ESP_LOGI(__FUNCTION__, "stdCanbusId=0x%x extCanbusId=0x%x", stdCanbusId, extCanbusId);
 	this->stringToParse=mbPayloadToParse;
 	ESP_LOG_BUFFER_HEXDUMP(__FUNCTION__, mbPayloadToParse.c_str(), mbPayloadToParse.size(), ESP_LOG_INFO);
 	if(mbPayloadToParse.size()==0){
@@ -37,7 +123,7 @@ MastervoltMessage* MvParser::parse(uint32_t stdCanbusId, uint32_t extCanbusId, c
 		ESP_LOGI(__FUNCTION__, "nbDaysZeroBC %d", nbDaysZeroBC);
 
 		//Day of month = float%32, Year=float/32/13, Month=decimal remainder of year*13
-		//840509.00==29/06/2020
+		//840509.00==30/06/2020
 		//840528.00==16/06/2020
 		//840944.00==16/05/2021
 		//840943.00==15/06/2021

@@ -8,9 +8,18 @@
 class MvParser {
 public:
 	MastervoltMessage* parse(uint32_t stdCanbusId, uint32_t extCanbusId, const std::string& canbusPayloadToParse);
+  MastervoltMessage* parseMasscombiResponseItemAndFloat(uint32_t stdCanbusId, uint32_t extCanbusId, const std::string& canbusPayloadToParse);
+  MastervoltMessage* parseDCShuntResponseItemAndFloat(uint32_t stdCanbusId, uint32_t extCanbusId, const std::string& canbusPayloadToParse);
+  MastervoltMessage* parseStdCanbusId(uint32_t stdCanbusId, uint32_t extCanbusId, const std::string& canbusPayloadToParse);
 	std::string parseString();
 	float parseValueAsFloat();
 	std::string stringToParse;
+
+	static void convertMastervoltFloatToTime(float floatValue, MastervoltMessageTime* timeMsg);
+	static void convertMastervoltFloatToDate(float floatValue, MastervoltMessageDate* dateMsg);
+private:
+  uint16_t getShortAttributeFromPayload(const std::string &mbPayloadToParse);
+  float getFloatFromPayloadAtOffset(const std::string &mbPayloadToParse, const uint8_t offset);
 };
 
 

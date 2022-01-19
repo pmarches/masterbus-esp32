@@ -195,7 +195,7 @@ function parseDCShuntResponseItemAndFloat(buffer,pinfo,tree)
     elseif(itemId==0x0a) then --Date of the DC Shunt
         local floatItem=tree:add_le(masterbus_proto.fields.responsedcshuntfloatValue, buffer(2,4))
         local floatDate=buffer(2,4):le_float()
-        local day=(floatDate%32)+1
+        local day=(floatDate%32)
         floatDate=floatDate-day;
         local yearAndFraction=floatDate/416.0; --32 days *13 months=416
         local year=math.floor(yearAndFraction)
