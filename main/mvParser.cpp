@@ -1,13 +1,12 @@
-#include "mvParser.hpp"
-
-#include <esp_log.h>
 #include <memory.h>
-
 #include <sstream>
 #include <iomanip>
 #include <iterator>
 #include <math.h>
 
+#include <esp_log.h>
+
+#include <mvParser.hpp>
 #include <mastervoltMessage.hpp>
 
 uint16_t MvParser::getShortAttributeFromPayload(const std::string &mbPayloadToParse) {
@@ -162,32 +161,5 @@ MastervoltMessage* MvParser::parse(uint32_t stdCanbusId, uint32_t extCanbusId, c
 float MvParser::parseValueAsFloat(){
 	float* valueAsFloat=(float*) (stringToParse.c_str()+2);
 	return *valueAsFloat;
-}
-
-MastervoltDeviceKind::MastervoltDeviceKind(uint32_t deviceKind, std::string textDescription) : deviceKind(deviceKind), textDescription(textDescription) {
-}
-
-std::string MastervoltDeviceKind::toString() const {
-	std::stringstream ss;
-	ss<< "deviceKind=0x"<< std::setw(2) << std::setfill('0') << std::hex << std::uppercase<<deviceKind;
-	return ss.str();
-}
-
-MastervoltAttributeKind::MastervoltAttributeKind(uint16_t attributeKind, std::string textDescription, MastervoltEncoding encoding, MastervoltDataType dataType):
-		parent(nullptr), attributeKind(attributeKind), textDescription(textDescription), encoding(encoding), dataType(dataType) {
-}
-
-void MastervoltDeviceKind::addAttribute(uint16_t attributeKind, std::string textDescription, MastervoltAttributeKind::MastervoltEncoding encoding, MastervoltAttributeKind::MastervoltDataType dataType){
-	MastervoltAttributeKind* att=new MastervoltAttributeKind(this, attributeKind, textDescription, encoding, dataType);
-	attributes.insert(std::pair<uint16_t, MastervoltAttributeKind*>(att->attributeKind, att));
-}
-
-std::string MastervoltAttributeKind::toString() const {
-	std::stringstream ss;
-	ss<< textDescription
-			<<" : encoding="<<encoding
-			<< std::setw(2) << std::setfill('0') << std::hex <<" dataType=0x"<<dataType
-			<< std::setw(2) << std::setfill('0') << std::hex <<" attributeKind=0x"<<attributeKind;
-	return ss.str();
 }
 
