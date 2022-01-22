@@ -67,8 +67,34 @@
 #define FLAG_RXM0                  0x20
 #define FLAG_RXM1                  0x40
 
+#include <sstream>
+#include <iomanip>
+
+CANBusPacket::CANBusPacket() :  canId(0), stdCanbusId(0), extCanbusId(0), dataLen(0), isRequest(false) {
+}
+
+CANBusPacket::~CANBusPacket() {
+}
+
+std::string CANBusPacket::getData(){
+  std::string dataStr;
+  for(int i=0; i<dataLen; i++){
+    dataStr.push_back(data[i]);
+  }
+  return dataStr;
+}
+
+std::string CANBusPacket::valueToHexString(){
+  std::stringstream ss;
+  ss << std::hex;
+  for( int i(0) ; i < dataLen; ++i ){
+    ss << std::setw(2) << std::setfill('0') << (int)data[i];
+  }
+
+  return ss.str();
+}
+
 MCP2515Class::MCP2515Class(SPIDevice* spi, gpio_num_t chipSelectPin, gpio_num_t interruptPin, uint32_t clockFrequency) :
-  CANControllerClass(),
 //  _spiSettings(10E6, MSBFIRST, SPI_MODE0),
   spi(spi),
   _csPin(chipSelectPin),
@@ -87,7 +113,6 @@ MCP2515Class::~MCP2515Class()
 int MCP2515Class::begin(long baudRate)
 {
 	ESP_LOGD(TAG, "Setting baudrate at %ld", baudRate);
-  CANControllerClass::begin(baudRate);
 
   //  spi.begin();
   reset();
@@ -164,40 +189,33 @@ int MCP2515Class::begin(long baudRate)
 void MCP2515Class::end()
 {
 //  spi.end();
-
-  CANControllerClass::end();
 }
 
-int MCP2515Class::endPacket()
+int MCP2515Class::write(CANBusPacket* frameToSend)
 {
-  if (!CANControllerClass::endPacket()) {
-	  ESP_LOGE(TAG, "CANControllerClass::endPacket failed");
-    return 0;
-  }
-
   int n = 0; //TX buffer number
 
-  if (_txExtended) {
-    writeRegister(REG_TXBnSIDH(n), _txId >> 21);
-    writeRegister(REG_TXBnSIDL(n), (((_txId >> 18) & 0x07) << 5) | FLAG_EXIDE | ((_txId >> 16) & 0x03));
-    writeRegister(REG_TXBnEID8(n), (_txId >> 8) & 0xff);
-    writeRegister(REG_TXBnEID0(n), _txId & 0xff);
+  if (frameToSend->extCanbusId) {
+    writeRegister(REG_TXBnSIDH(n), frameToSend->canId >> 21);
+    writeRegister(REG_TXBnSIDL(n), (((frameToSend->canId >> 18) & 0x07) << 5) | FLAG_EXIDE | ((frameToSend->canId >> 16) & 0x03));
+    writeRegister(REG_TXBnEID8(n), (frameToSend->canId >> 8) & 0xff);
+    writeRegister(REG_TXBnEID0(n), frameToSend->canId & 0xff);
   } else {
-    writeRegister(REG_TXBnSIDH(n), _txId >> 3);
-    writeRegister(REG_TXBnSIDL(n), _txId << 5);
+    writeRegister(REG_TXBnSIDH(n), frameToSend->canId >> 3);
+    writeRegister(REG_TXBnSIDL(n), frameToSend->canId << 5);
     writeRegister(REG_TXBnEID8(n), 0x00);
     writeRegister(REG_TXBnEID0(n), 0x00);
   }
 
-  if (_txRtr) {
-    writeRegister(REG_TXBnDLC(n), 0x40 | _txLength);
+  if (frameToSend->isRequest) {
+    writeRegister(REG_TXBnDLC(n), 0x40 | frameToSend->dataLen);
   } else {
-    writeRegister(REG_TXBnDLC(n), _txLength);
-    ESP_LOGD(TAG, "_txLength=%d", _txLength);
+    writeRegister(REG_TXBnDLC(n), frameToSend->dataLen);
+    ESP_LOGD(TAG, "_txLength=%d", frameToSend->dataLen);
 
-    for (int i = 0; i < _txLength; i++) {
-	ESP_LOGD(TAG, "_txData[i]=%x", _txData[i]);
-      writeRegister(REG_TXBnD0(n) + i, _txData[i]);
+    for (int i = 0; i < frameToSend->dataLen; i++) {
+	ESP_LOGD(TAG, "_txData[i]=%x", frameToSend->data[i]);
+      writeRegister(REG_TXBnD0(n) + i, frameToSend->data[i]);
     }
   }
 
@@ -218,26 +236,24 @@ int MCP2515Class::endPacket()
   return (readRegister(REG_TXBnCTRL(n)) & 0x70) ? 0 : 1;
 }
 
-int MCP2515Class::parsePacket()
+int MCP2515Class::parsePacket(CANBusPacket* frame)
 {
   uint8_t intf = readRegister(REG_CANINTF);
-//  ESP_EARLY_LOGD(TAG, "intf=%x", intf);
+  ESP_EARLY_LOGD(TAG, "intf=%x", intf);
 
   uint8_t whichRxBuffer;
   if (intf & FLAG_RXnIF(0)) {
     whichRxBuffer = 0;
+    ESP_EARLY_LOGD(TAG, "whichRxBuffer==0 %d", whichRxBuffer);
   } else if (intf & FLAG_RXnIF(1)) {
     whichRxBuffer = 1;
+    ESP_EARLY_LOGD(TAG, "whichRxBuffer==1 %d", whichRxBuffer);
   } else {
-    _rxId = -1;
-    _rxExtended = false;
-    _rxRtr = false;
-    _rxLength = 0;
-    ESP_LOGD(TAG, "RX in neither buffers");
+    ESP_EARLY_LOGD(TAG, "RX in neither buffers");
     return false;
   }
 
-  _rxExtended = (readRegister(REG_RXBnSIDL(whichRxBuffer)) & FLAG_IDE) ? true : false;
+  uint32_t _rxExtended = (readRegister(REG_RXBnSIDL(whichRxBuffer)) & FLAG_IDE) ? true : false;
 
   //Read the identifier (8+3 bits) from the chip
   uint32_t idA = ((readRegister(REG_RXBnSIDH(whichRxBuffer)) << 3) & 0x07f8) | ((readRegister(REG_RXBnSIDL(whichRxBuffer)) >> 5) & 0x07);
@@ -245,35 +261,28 @@ int MCP2515Class::parsePacket()
 	  //2 bits from SIDL + 8 bits from EID8 + 8 bits from EID0  = 18 bits of extended identifier
     uint32_t idB = (((uint32_t)(readRegister(REG_RXBnSIDL(whichRxBuffer)) & 0x03) << 16) & 0x30000) | ((readRegister(REG_RXBnEID8(whichRxBuffer)) << 8) & 0xff00) | readRegister(REG_RXBnEID0(whichRxBuffer));
 
-    _rxId = (idA << 18) | idB;
-    _rxRtr = (readRegister(REG_RXBnSIDL(whichRxBuffer)) & FLAG_SRR) ? true : false;
+    frame->canId = (idA << 18) | idB;
+    frame->isRequest = (readRegister(REG_RXBnSIDL(whichRxBuffer)) & FLAG_SRR) ? true : false;
   } else {
-    _rxId = idA;
-    _rxRtr = (readRegister(REG_RXBnDLC(whichRxBuffer)) & FLAG_RTR) ? true : false;
+    frame->canId = idA;
+    frame->isRequest = (readRegister(REG_RXBnDLC(whichRxBuffer)) & FLAG_RTR) ? true : false;
   }
-  _rxDlc = readRegister(REG_RXBnDLC(whichRxBuffer)) & 0x0f;
-  _rxIndex = 0;
-//FIXME This prevents us from reading the data..
-  if (false && _rxRtr) {
-    _rxLength = 0;
-  } else {
-    _rxLength = _rxDlc;
+  frame->stdCanbusId= (frame->canId&0xFFFC0000)>>18; //This might be a deviceKind Id
+  frame->extCanbusId= (frame->canId&0x0003FFFF);     //This might be a device unique ID
+  frame->dataLen = readRegister(REG_RXBnDLC(whichRxBuffer)) & 0x0f;
 
-    for (int i = 0; i < _rxLength; i++) {
-      _rxData[i] = readRegister(REG_RXBnD0(whichRxBuffer) + i);
-    }
+  for(int i=0; i<frame->dataLen; i++){
+    frame->data[i]=readRegister(REG_RXBnD0(whichRxBuffer) + i);
   }
 
-#if 0
+#if 1
   ESP_EARLY_LOGD(TAG, "_rxExtended=%d", _rxExtended);
-  ESP_EARLY_LOGD(TAG, "_rxId=0x%x", (uint32_t) _rxId);
-  ESP_EARLY_LOGD(TAG, "_rxRtr=%d", _rxRtr);
-  ESP_EARLY_LOGD(TAG, "_rxDlc=%d", _rxDlc);
-  ESP_EARLY_LOGD(TAG, "_rxIndex=%d", _rxIndex);
+  ESP_EARLY_LOGD(TAG, "frame->canId=0x%x", (uint32_t) frame->canId);
+  ESP_EARLY_LOGD(TAG, "_rxRtr=%d", frame->isRequest);
+  ESP_EARLY_LOGD(TAG, "_rxDlc=%d", frame->dataLen);
 #endif
 
   modifyRegister(REG_CANINTF, FLAG_RXnIF(whichRxBuffer), 0x00);
-
   return true;
 }
 
@@ -286,7 +295,7 @@ void MCP2515Class::handleInterrupt(void* thisObjPtr) {
 }
 
 void MCP2515Class::attachInterrupt(gpio_isr_t canbusInterruptHandler){
-	ESP_LOGD(TAG, "Begin");
+	ESP_LOGD(TAG, "Attaching interupt on pin %d", _intPin);
 	gpio_config_t gpioConfig = {
 		.pin_bit_mask = (1ul<<_intPin),
 		.mode	= GPIO_MODE_INPUT,

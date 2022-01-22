@@ -34,7 +34,8 @@ long autoDetectBaudRate(MCP2515Class& mcp2515){
 				break;
 			}
 			else{
-				nbValidPackets+=mcp2515.parsePacket();
+			  CANBusPacket frame;
+				nbValidPackets+=mcp2515.parsePacket(&frame);
 				if(nbValidPackets>3){
 					ESP_LOGD(__FUNCTION__, "Got enough good packets to determine the baud rate is %ld", baudRate);
 					return baudRate;
@@ -93,27 +94,17 @@ bool MasterbusController::readPacket(CANBusPacket& packet){
 	}
 #endif
 
-	bool hasPacket=mcp2515->parsePacket();
+	bool hasPacket=mcp2515->parsePacket(&packet);
 	if(hasPacket){
-		if(mcp2515->packetDlc()==0){
+		if(packet.dataLen==0){
 			ESP_LOGW(__FUNCTION__, "These empty packets are sent by the masterview, every 30 seconds. They request data to keep coming. But how is the data selected as we change the pages?");
 		}
-		if(0xFFFFFF1F==mcp2515->packetId()){
+		if(0xFFFFFF1F==packet.canId){
       ESP_LOGW(__FUNCTION__, "Got a invalid packet. Maybe the MCP2515 is not initialized properly?");
 		  return false;
 		}
 
 //		mcp2515->dumpRegisterState();
-		packet.canId=mcp2515->packetId();
-		packet.isRequest=mcp2515->_rxRtr;
-//		packet.canId=htonl(packet.canId);
-		packet.stdCanbusId= (packet.canId&0xFFFC0000)>>18; //This might be a deviceKind Id
-		packet.extCanbusId= (packet.canId&0x0003FFFF);     //This might be a device unique ID
-
-		packet.dataLen=mcp2515->packetDlc();
-		for(int i=0; i<packet.dataLen; i++){
-			packet.data[i]=mcp2515->read();
-		}
 	}
 //	ESP_LOGD(__FUNCTION__, "Tried to read canpacket %d", hasPacket);
 	return hasPacket;
@@ -127,7 +118,7 @@ void MasterbusController::pumpCanbusToQueue(void* thisObjPtr){
 	  while (thisObj->keepPumping) {
 //		  ESP_LOGD(__FUNCTION__, "Waitingfor a canbus packet");
 		  if(thisObj->readPacket(canbusPacketToQueue)){
-//			  ESP_LOGD(__FUNCTION__, "RX Packet, forward it to the queue");
+			  ESP_LOGD(__FUNCTION__, "RX Packet, forward it to the queue. dataLen=%d", canbusPacketToQueue.dataLen);
 			  if(xQueueSendToBack(thisObj->pumpQueue, &canbusPacketToQueue, 0)!=pdTRUE){
 				  ESP_LOGE(__FUNCTION__, "Failed to enqueue canbus packet. Maybe queue is full?");
 			  }
@@ -139,7 +130,7 @@ void MasterbusController::pumpCanbusToQueue(void* thisObjPtr){
 
 void MasterbusController::startCANBusPump(){
 	this->keepPumping=true;
-	xTaskCreatePinnedToCore(MasterbusController::pumpCanbusToQueue, "pumpCanbusToQueue", 2048, this, 5, &taskPumpMToQueueHandle, 0);
+	xTaskCreatePinnedToCore(MasterbusController::pumpCanbusToQueue, "pumpCanbusToQueue", 4096, this, 5, &taskPumpMToQueueHandle, 0);
 }
 
 bool MasterbusController::isCANBusPumping(){
@@ -156,11 +147,15 @@ void MasterbusController::send(uint32_t canId, uint8_t* canDataToSend, uint32_t 
 
 	ESP_LOGW(__FUNCTION__, "Sending %d bytes to 0x%x", canDataLenToSend, canId);
 	ESP_LOG_BUFFER_HEXDUMP("  canDataToSend ", canDataToSend, canDataLenToSend, ESP_LOG_DEBUG);
-	mcp2515->beginExtendedPacket(canId, canDataLenToSend, true);
 
-	mcp2515->write(canDataToSend, canDataLenToSend);
-	if(mcp2515->endPacket()==0){
-		ESP_LOGE(__FUNCTION__, "Failed to endPacket()");
+	CANBusPacket frameToSend;
+	frameToSend.canId=canId;
+	frameToSend.isRequest=false;
+	frameToSend.dataLen=canDataLenToSend;
+	memcpy(frameToSend.data, canDataToSend, canDataLenToSend);
+
+	if(mcp2515->write(&frameToSend)){
+		ESP_LOGE(__FUNCTION__, "Failed to write(CANBusFrame)");
 		mcp2515->dumpRegisterState();
 	}
 
@@ -182,29 +177,7 @@ int MasterbusController::configure(int operationalMode) {
 	}
 
 	mcp2515->attachInterrupt(MCP2515Class::handleInterrupt);
+  ESP_LOGI(__FUNCTION__, "MCP2515 configured successfully");
 	return ESP_OK;
 }
 
-CANBusPacket::CANBusPacket() : 	canId(0), stdCanbusId(0), extCanbusId(0), dataLen(0), isDirty(false), isRequest(false) {
-}
-
-CANBusPacket::~CANBusPacket() {
-}
-
-std::string CANBusPacket::getData(){
-	std::string dataStr;
-	for(int i=0; i<dataLen; i++){
-		dataStr.push_back(data[i]);
-	}
-	return dataStr;
-}
-
-std::string CANBusPacket::valueToHexString(){
-	std::stringstream ss;
-	ss << std::hex;
-	for( int i(0) ; i < dataLen; ++i ){
-		ss << std::setw(2) << std::setfill('0') << (int)data[i];
-	}
-
-	return ss.str();
-}

@@ -8,21 +8,6 @@
 #include <sstream>
 #include <iomanip>
 
-class CANBusPacket {
-public:
-	uint32_t canId;
-	uint32_t stdCanbusId;
-	uint32_t extCanbusId;
-	uint8_t data[16];
-	uint32_t dataLen;
-	bool isDirty;
-	bool isRequest;
-	CANBusPacket();
-	~CANBusPacket();
-	std::string valueToHexString();
-	std::string getData();
-};
-
 class MasterbusController {
 public:
 	MasterbusController(MCP2515Class* mcp2515);

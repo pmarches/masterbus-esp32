@@ -10,7 +10,8 @@ class SPIBus {
 public:
 	SPIBus(spi_host_device_t host);
 	~SPIBus();
-	esp_err_t init(gpio_num_t mosiPin, gpio_num_t misoPin, gpio_num_t clkPin);
+	esp_err_t init(gpio_num_t mosiPin, gpio_num_t misoPin, gpio_num_t clkPin, gpio_num_t interruptPin);
+	esp_err_t deInit();
 //	uint8_t transferByte(uint8_t value);
 private:
   spi_host_device_t   m_host;

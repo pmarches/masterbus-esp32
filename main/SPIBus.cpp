@@ -1,4 +1,5 @@
 #include <SPIBus.h>
+#include <cstring>
 
 void configurePinAsOutput(gpio_num_t pin){
   ESP_LOGI(__FUNCTION__, "pin=%d", pin);
@@ -19,12 +20,13 @@ SPIBus::~SPIBus(){
 	  ESP_ERROR_CHECK(::spi_bus_free(m_host));
 }
 
-esp_err_t SPIBus::init(gpio_num_t mosiPin, gpio_num_t misoPin, gpio_num_t clkPin){
-	ESP_LOGD(__FUNCTION__, "init: mosi=%d, miso=%d, clk=%d", mosiPin, misoPin, clkPin);
+esp_err_t SPIBus::init(gpio_num_t mosiPin, gpio_num_t misoPin, gpio_num_t clkPin, gpio_num_t interruptPin){
+	ESP_LOGD(__FUNCTION__, "init: mosi=%d, miso=%d, clk=%d interrupt=%d", mosiPin, misoPin, clkPin, interruptPin);
 
 	configurePinAsOutput(clkPin);
 	configurePinAsOutput(mosiPin);
 	gpio_set_direction(misoPin, GPIO_MODE_INPUT);
+  gpio_set_direction(interruptPin, GPIO_MODE_INPUT);
 
 	spi_bus_config_t bus_config;
 	bus_config.sclk_io_num     = clkPin;  // CLK
@@ -51,18 +53,33 @@ esp_err_t SPIBus::init(gpio_num_t mosiPin, gpio_num_t misoPin, gpio_num_t clkPin
 	return ESP_OK;
 }
 
+esp_err_t SPIBus::deInit(){
+  return spi_bus_free(m_host);
+}
+
 SPIDevice::SPIDevice(SPIBus* spiBus, gpio_num_t csPin): spiBus(spiBus), csPin(csPin), m_handle(nullptr) {
 	configureChipSelectPin(csPin);
 }
 
 SPIDevice::~SPIDevice(){
-	  ESP_LOGI(__FUNCTION__, "... Removing device.");
-	  ESP_ERROR_CHECK(::spi_bus_remove_device(m_handle));
+  if(nullptr==m_handle){
+    ESP_LOGW(__FUNCTION__, "Releasing device that was never used");
+  }
+  else {
+    ESP_LOGI(__FUNCTION__, "... Removing device.");
+    ESP_ERROR_CHECK(::spi_bus_remove_device(m_handle));
+  }
 }
 
 esp_err_t SPIDevice::init(){
 	ESP_LOGD(__FUNCTION__, "init: cs=%d", csPin);
+  gpio_reset_pin(csPin);
+  gpio_set_direction(csPin, GPIO_MODE_OUTPUT);
+  gpio_set_intr_type(csPin, GPIO_INTR_DISABLE);
+  gpio_set_level(csPin, 1);
+
 	spi_device_interface_config_t dev_config;
+	memset(&dev_config, 0, sizeof(dev_config));
 	dev_config.address_bits     = 0;
 	dev_config.command_bits     = 0;
 	dev_config.dummy_bits       = 0;

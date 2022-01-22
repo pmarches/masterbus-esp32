@@ -8,8 +8,8 @@
 
 #include <SPIBus.h>
 
-#include "CANController.h"
 #include <freertos/semphr.h>
+#include <string>
 
 #define MCP2515_DEFAULT_CLOCK_FREQUENCY 16e6
 
@@ -22,7 +22,21 @@
 #define MCP2515_DEFAULT_INT_PIN         2
 #endif
 
-class MCP2515Class : public CANControllerClass {
+class CANBusPacket {
+public:
+  uint32_t canId;
+  uint32_t stdCanbusId;
+  uint32_t extCanbusId;
+  uint8_t data[16];
+  uint32_t dataLen;
+  bool isRequest;
+  CANBusPacket();
+  ~CANBusPacket();
+  std::string valueToHexString();
+  std::string getData();
+};
+
+class MCP2515Class {
 
 public:
   enum {
@@ -39,13 +53,11 @@ public:
   virtual int begin(long baudRate);
   virtual void end();
 
-  virtual int endPacket();
+  int write(CANBusPacket* frameToSend);
 
-  virtual int parsePacket();
+  virtual int parsePacket(CANBusPacket* frame);
 
-  using CANControllerClass::filter;
   virtual int filter(int id, int mask);
-  using CANControllerClass::filterExtended;
   virtual int filterExtended(long id, long mask);
   void clearAllFilters();
 
