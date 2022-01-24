@@ -5,6 +5,7 @@ idf_component_register(
 	 "main/mvParser.cpp" 
 	 main/mastervoltMessage.cpp
 	 main/mvDictionary.cpp
+	 main/eventCounter.cpp
 	 
     INCLUDE_DIRS "main/include"
 )

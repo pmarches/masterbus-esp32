@@ -78,6 +78,7 @@ public:
 
 private:
   void reset();
+  void configureRxBuffer();
 
   uint8_t readRegister(uint8_t address);
   void modifyRegister(uint8_t address, uint8_t mask, uint8_t value);

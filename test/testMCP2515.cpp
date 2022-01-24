@@ -13,9 +13,13 @@
 
 void configurePinAsOutput(gpio_num_t pin);
 
+#include <eventCounter.h>
+#include <map>
+std::map<uint32_t, EventCounter*> msgkindToEventCounters;
+
 SPIBus spiBus(SPI2_HOST);
 TEST_CASE("Test canbus controller mcp2515", "[mcp2515]") {
-  esp_log_level_set("parsePacket", ESP_LOG_WARN);
+//  esp_log_level_set("parsePacket", ESP_LOG_WARN);
   ESP_LOGD(__FUNCTION__, "For whaterever reason, I cannot reset the gpio pins twice in the unit test...");
   spiBus.init(SPI_MASTER_OUT_SLAVE_IN_PIN, SPI_MASTER_IN_SLAVE_OUT_PIN, SPI_CLK_PIN, SPI_INT_PIN);
 
@@ -25,16 +29,21 @@ TEST_CASE("Test canbus controller mcp2515", "[mcp2515]") {
   mcp2515->setOperationalMode(MCP2515Class::NORMAL_MODE);
   mcp2515->clearAllFilters();
 
+#if 0
+  //Apply filter on RXF0-5
+  //Message will be found in RXB0-5 ?
+  mcp2515->filtersAcceptCanId(0x83AF412);
+#endif
+
   mcp2515->attachInterrupt(MCP2515Class::handleInterrupt);
   TEST_ASSERT_EQUAL(0, mcp2515->begin(250000));
 
   CANBusPacket packet;
-  while(true){
+  for(uint32_t i=0;; i++){
     if(mcp2515->parsePacket(&packet)==false){
-      ESP_LOGD(__FUNCTION__, "No frame");
+//      ESP_LOGD(__FUNCTION__, "No frame");
     }
     else {
-      ESP_LOGD(__FUNCTION__, "Got a frame");
       if(packet.dataLen==0){
         ESP_LOGW(__FUNCTION__, "Got empty frame");
       }
@@ -42,9 +51,22 @@ TEST_CASE("Test canbus controller mcp2515", "[mcp2515]") {
         ESP_LOGW(__FUNCTION__, "Got a invalid packet. Maybe the MCP2515 is not initialized properly?");
       }
 
+      EventCounter* eventCounter=msgkindToEventCounters[packet.canId];
+      if(nullptr == eventCounter){
+        eventCounter=new EventCounter();
+        msgkindToEventCounters[packet.canId]=eventCounter;
+      }
+      eventCounter->increment();
   //    mcp2515->dumpRegisterState();
-      ESP_LOGW(__FUNCTION__, "packet.canId=0x%X => packet.stdCanbusId=0x%X packet.extCanbusId=0x%X", packet.canId, packet.stdCanbusId, packet.extCanbusId);
-      vTaskDelay(100);
+      ESP_LOGD(__FUNCTION__, "packet.canId=0x%X => packet.stdCanbusId=0x%X packet.extCanbusId=0x%X", packet.canId, packet.stdCanbusId, packet.extCanbusId);
+      ESP_LOGD(__FUNCTION__, "%s", eventCounter->toString().c_str());
+      if(mcp2515->getAndClearRxOverflow()){
+        ESP_LOGW(__FUNCTION__, "Canbus RX overflow occured. We have lost some messages");
+      }
+
+      if(i%30==0){
+        mcp2515->dumpRegisterState();
+      }
     }
   }
   delete mcp2515;

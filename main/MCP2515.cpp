@@ -66,6 +66,7 @@
 
 #define FLAG_RXM0                  0x20
 #define FLAG_RXM1                  0x40
+#define FLAG_RXBCTRL_ROLLOVER_BUFFER0_TO_BUFFER1 0x04
 
 #include <sstream>
 #include <iomanip>
@@ -103,6 +104,12 @@ MCP2515Class::MCP2515Class(SPIDevice* spi, gpio_num_t chipSelectPin, gpio_num_t 
   _operationalMode(MCP2515Class::LISTEN_ONLY_MODE)
 {
 	msgPumpSemaphore=xSemaphoreCreateBinary();
+}
+
+void MCP2515Class::configureRxBuffer(){
+//  writeRegister(RXB0CTRL, 0b00000100);
+  writeRegister(REG_RXBnCTRL(0), FLAG_RXM1 | FLAG_RXM0 | FLAG_RXBCTRL_ROLLOVER_BUFFER0_TO_BUFFER1);
+  writeRegister(REG_RXBnCTRL(1), FLAG_RXM1 | FLAG_RXM0);
 }
 
 MCP2515Class::~MCP2515Class()
@@ -175,8 +182,8 @@ int MCP2515Class::begin(long baudRate)
   writeRegister(REG_CANINTE, FLAG_RXnIE(1) | FLAG_RXnIE(0));
   writeRegister(REG_BFPCTRL, 0x00);
   writeRegister(REG_TXRTSCTRL, 0x00);
-  writeRegister(REG_RXBnCTRL(0), FLAG_RXM1 | FLAG_RXM0);
-  writeRegister(REG_RXBnCTRL(1), FLAG_RXM1 | FLAG_RXM0);
+
+  configureRxBuffer();
 
   if (setMode(_operationalMode)) {
 	  ESP_LOGE(TAG, "Failed to go to mode %x", _operationalMode);
@@ -236,20 +243,23 @@ int MCP2515Class::write(CANBusPacket* frameToSend)
   return (readRegister(REG_TXBnCTRL(n)) & 0x70) ? 0 : 1;
 }
 
+#include <eventCounter.h>
+EventCounter bufferCounter[2];
+
 int MCP2515Class::parsePacket(CANBusPacket* frame)
 {
   uint8_t intf = readRegister(REG_CANINTF);
-  ESP_EARLY_LOGD(TAG, "intf=%x", intf);
+//  ESP_EARLY_LOGD(TAG, "intf=%x", intf);
 
   uint8_t whichRxBuffer;
   if (intf & FLAG_RXnIF(0)) {
     whichRxBuffer = 0;
-    ESP_EARLY_LOGD(TAG, "whichRxBuffer==0 %d", whichRxBuffer);
+//    ESP_EARLY_LOGD(TAG, "whichRxBuffer==0 %d", whichRxBuffer);
   } else if (intf & FLAG_RXnIF(1)) {
     whichRxBuffer = 1;
-    ESP_EARLY_LOGD(TAG, "whichRxBuffer==1 %d", whichRxBuffer);
+//    ESP_EARLY_LOGD(TAG, "whichRxBuffer==1 %d", whichRxBuffer);
   } else {
-    ESP_EARLY_LOGD(TAG, "RX in neither buffers");
+//    ESP_EARLY_LOGD(TAG, "RX in neither buffers");
     return false;
   }
 
@@ -275,14 +285,15 @@ int MCP2515Class::parsePacket(CANBusPacket* frame)
     frame->data[i]=readRegister(REG_RXBnD0(whichRxBuffer) + i);
   }
 
-#if 1
+#if 0
   ESP_EARLY_LOGD(TAG, "_rxExtended=%d", _rxExtended);
   ESP_EARLY_LOGD(TAG, "frame->canId=0x%x", (uint32_t) frame->canId);
   ESP_EARLY_LOGD(TAG, "_rxRtr=%d", frame->isRequest);
   ESP_EARLY_LOGD(TAG, "_rxDlc=%d", frame->dataLen);
 #endif
 
-  modifyRegister(REG_CANINTF, FLAG_RXnIF(whichRxBuffer), 0x00);
+  modifyRegister(REG_CANINTF, FLAG_RXnIF(whichRxBuffer), 0x00); //We are done with this buffer, make it available for receiving another message
+  bufferCounter[whichRxBuffer].increment();
   return true;
 }
 
@@ -521,6 +532,10 @@ void MCP2515Class::dumpRegisterState(){
 
 	status=readRegister(REG_TXBnCTRL(0));
 	ESP_LOGD(TAG, "REG_TXBnCTRL(0): %x", status);
+
+  ESP_LOGI(TAG, "bufferCounter 0 %s", bufferCounter[0].toString().c_str());
+  ESP_LOGI(TAG, "bufferCounter 1 %s", bufferCounter[1].toString().c_str());
+
 }
 
 #define RX1OVR 0x40 //Receive Buffer 1 Overflow Flag bit
