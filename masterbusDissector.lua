@@ -32,8 +32,9 @@ local MASSCOMBI_ITEMS={
     [0x11]="INVERTER_LOAD_PERCENT",
     [0x12]="State of charger", -- "No shore"
     [0x13]="INVERTER_SHORE_FUSE", --Can configure the value here (like a switch). 14.0=>18 Amps
-    [0x14]="INVERTER_MODE", --On or standby
-    [0x38]="INVERTER_POWER_STATE",
+    [0x14]="INVERTER_ON_OFF", --This is the softswitch state : 1.0 for On, 0.0 is off
+    [0x15]="INVERTER_ENTER_OFF", --I receive this when I put the inverter in off mode (0.0), with a masterview soft switch, from the favorite page. I do not get something like it when I turn it on.
+    [0x38]="MASSCOMBI_POWER_STATE",
     [0x3A]="CHARGER_SWITCH_STATE", --This is the state switch
     [0x3C]="CHARGER_MODE", --Auto, ...
 }

@@ -15,8 +15,8 @@ public:
 	float parseValueAsFloat();
 	std::string stringToParse;
 
-	static void convertMastervoltFloatToTime(float floatValue, MastervoltMessageTime* timeMsg);
-	static void convertMastervoltFloatToDate(float floatValue, MastervoltMessageDate* dateMsg);
+	static void convertMastervoltFloatToTime(float floatValue, MastervoltMessage* timeMsg);
+	static void convertMastervoltFloatToDate(float floatValue, MastervoltMessage* dateMsg);
 private:
   uint16_t getShortAttributeFromPayload(const std::string &mbPayloadToParse);
   float getFloatFromPayloadAtOffset(const std::string &mbPayloadToParse, const uint8_t offset);

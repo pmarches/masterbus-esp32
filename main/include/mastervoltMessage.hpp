@@ -18,100 +18,32 @@ public:
 	};
 	MastervoltMessageType type;
 
-	MastervoltMessage(uint32_t deviceUniqueId, uint32_t deviceKindId, uint8_t attributeId) :
+	union {
+    float floatValue;
+	  struct {
+      uint16_t day;
+      uint16_t month;
+      uint16_t year;
+	  };
+	  struct {
+	    uint8_t hour;
+	    uint8_t minute;
+	    uint8_t second;
+	  };
+	  struct {
+	    uint16_t segmentNumber;
+	    std::string* label;
+	  };
+	} value;
+
+	MastervoltMessage(MastervoltMessageType type, uint32_t deviceUniqueId, uint32_t deviceKindId, uint8_t attributeId) :
 		deviceUniqueId(deviceUniqueId),
 		deviceKindId(deviceKindId),
 		attributeId(attributeId),
-		type(UNKNOWN) {}
+		type(type) {}
 	virtual ~MastervoltMessage() {}
 	virtual std::string toString() const;
 };
-
-class MastervoltMessageUnknown : public MastervoltMessage {
-public:
-	std::string unknownBytes;
-	MastervoltMessageUnknown(uint32_t deviceUniqueId, uint32_t deviceKindId, uint8_t attributeId, std::string unknownBytes):
-		MastervoltMessage(deviceUniqueId, deviceKindId, attributeId),
-		unknownBytes(unknownBytes) {
-		type=UNKNOWN;
-	}
-	virtual ~MastervoltMessageUnknown() {}
-	std::string toString() const;
-};
-
-
-class MastervoltMessageRequest : public MastervoltMessage {
-public:
-	MastervoltMessageRequest(uint32_t deviceUniqueId, uint32_t deviceKindId, uint8_t attributeId):
-		MastervoltMessage(deviceUniqueId, deviceKindId, attributeId){
-		type=REQUEST;
-	}
-	virtual ~MastervoltMessageRequest() {}
-};
-
-class MastervoltMessageFloat : public MastervoltMessage {
-public:
-	MastervoltMessageFloat(uint32_t deviceUniqueId, uint32_t deviceKindId, uint8_t attributeId, float floatValue):
-		MastervoltMessage(deviceUniqueId, deviceKindId, attributeId),
-		floatValue(floatValue) {
-		type=FLOAT;
-	}
-	virtual ~MastervoltMessageFloat() {}
-	float floatValue;
-	float getFloatValue();
-	std::string toString() const;
-};
-
-class MastervoltMessageDate : public MastervoltMessage {
-public:
-	uint16_t day;
-	uint16_t month;
-	uint16_t year;
-
-	MastervoltMessageDate(uint32_t deviceUniqueId, uint32_t deviceKindId, uint8_t attributeId):
-		MastervoltMessage(deviceUniqueId, deviceKindId, attributeId),
-		day(0),
-		month(0),
-		year(0) {
-		type=DATE;
-	}
-	virtual ~MastervoltMessageDate() {}
-	void toTm(struct tm& destinationTm);
-	virtual std::string toString() const;
-};
-
-class MastervoltMessageTime : public MastervoltMessage {
-public:
-	uint8_t hour;
-	uint8_t minute;
-	uint8_t second;
-	MastervoltMessageTime(uint32_t deviceUniqueId, uint32_t deviceKindId, uint8_t attributeId):
-		MastervoltMessage(deviceUniqueId, deviceKindId, attributeId),
-		hour(0),
-		minute(0),
-		second(0) {
-		type=TIME;
-	}
-	virtual ~MastervoltMessageTime() {}
-	void toTm(struct tm& destinationTm);
-	virtual std::string toString() const;
-};
-
-class MastervoltMessageLabel : public MastervoltMessage {
-public:
-	MastervoltMessageLabel(uint32_t deviceUniqueId, uint32_t deviceKindId, uint8_t attributeId, uint8_t segmentNumber, std::string label):
-		MastervoltMessage(deviceUniqueId, deviceKindId, attributeId),
-		segmentNumber(segmentNumber),
-		label(label) {
-		type=LABEL;
-	}
-	virtual ~MastervoltMessageLabel() {}
-	uint16_t segmentNumber;
-	std::string label;
-
-	std::string toString() const;
-};
-
 
 
 #endif /* COMPONENTS_MASTERBUS_ESP32_MAIN_INCLUDE_MASTERVOLTMESSAGE_HPP_ */

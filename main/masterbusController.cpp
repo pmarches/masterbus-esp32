@@ -130,7 +130,7 @@ void MasterbusController::pumpCanbusToQueue(void* thisObjPtr){
 
 void MasterbusController::startCANBusPump(){
 	this->keepPumping=true;
-	xTaskCreatePinnedToCore(MasterbusController::pumpCanbusToQueue, "pumpCanbusToQueue", 4096, this, 5, &taskPumpMToQueueHandle, 0);
+	xTaskCreatePinnedToCore(MasterbusController::pumpCanbusToQueue, "pumpCanbusToQueue", 4096, this, 5, &taskPumpMToQueueHandle, 1);
 }
 
 bool MasterbusController::isCANBusPumping(){
