@@ -115,19 +115,12 @@ Please modify the wireshark dissector first. It is better to add information in 
 TODO
 ---
 
-* The hacky code I have for the MCP2515 seems to be dropping canbus packets. When I capture packets using the raspberry pi canhat, I get a lot more. Especially, on the masterview favorites page, where I monitor  6 values. I seem to be getting the last 2 areas more than the rest.
-  * Add timing measurements
-  * Add throughput measurement. Message/second per attribute?
-  * Find better code for the MCP2515
-  * Add interrupt handling
-  * Use the double buffers on the MCP2515
-  * Filter out other messages than the ones I am interrested in
-* Remove the old code that does not correspond to the wireshark dissector. The Dissector is the authority.
-* Add fucntions to craft a value request packet. Emulate the masterview.
+* Add a filter in the MCP2515 to filter out other messages than the ones I am interrested in. Will reduce processing time, power, dropped messages.
+* Add functions to craft a value request packet. Emulate the masterview.
 * Move the GPIO configuration to sdkconfig file
+* When we get disconnected from the Wifi, the BLE monitoring does not restart automatically. 
+* Possible memory leak
 
-
-Issue: Low frequency of DCShunt updates (volts and amps)
+Issue
 ---
-If I am on the Volts and amps panel, I get a amps update every 5 seconds on average. Over 87 minutes, I got 2250 DCAmp messages via the MCP2515 so 25/minute. The raspberry pi capture got 789 over 14 minutes (56 / minutes). The Masterview requests a refresh every second, so that makes sense.
 
